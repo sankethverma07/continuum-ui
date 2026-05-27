@@ -1,0 +1,31 @@
+{
+  "name": "@continuum/ingest",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Continuum UI ingest pipeline — takes one hero asset, emits a variable-tier LOD stack, writes a catalog row to Supabase.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "dry-run:image": "tsx src/cli/dryRunImage.ts",
+    "dry-run:mesh": "tsx src/cli/dryRunMesh.ts"
+  },
+  "dependencies": {
+    "@gltf-transform/core": "^4.1.1",
+    "@gltf-transform/extensions": "^4.1.1",
+    "@gltf-transform/functions": "^4.1.1",
+    "@supabase/supabase-js": "^2.45.4",
+    "meshoptimizer": "^0.22.0",
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.2"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  }
+}

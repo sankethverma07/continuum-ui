@@ -1,0 +1,336 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Continuum — Progressive Asset Pipeline Architecture</title>
+  <desc id="desc">Portfolio diagram. Three-stage pipeline: a designer exports a .glb from Spline or Blender and drops it into Supabase Storage. A server Edge Function reads the source, runs meshoptimizer to decimate it into N progressively simpler tiers, and writes them back along with a catalog row. In the browser, useCatalogEntry fetches the row, useGLTF loads the tier .glbs, and ProgressiveEngine stacks them as wireframe blueprints that cross-fade into the hero tier's materials across a Doherty-tuned schedule, turning multi-second loads into a perceived-instant reveal.</desc>
+
+  <!-- ============== BACKGROUND ============== -->
+  <rect width="1600" height="900" fill="#0B0805"/>
+
+  <!-- Subtle radial depth behind the architecture -->
+  <defs>
+    <radialGradient id="bgGlow" cx="50%" cy="55%" r="55%">
+      <stop offset="0%" stop-color="#D7A86E" stop-opacity="0.06"/>
+      <stop offset="60%" stop-color="#D7A86E" stop-opacity="0.02"/>
+      <stop offset="100%" stop-color="#0B0805" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Arrow marker -->
+    <marker id="arrowBright" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#B8A07D"/>
+    </marker>
+    <marker id="arrowDim" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7A6A56"/>
+    </marker>
+
+    <!-- Watch tier glyphs — reused in the reveal strip -->
+    <symbol id="wireBase" viewBox="-50 -50 100 100">
+      <circle cx="0" cy="0" r="36" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    </symbol>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bgGlow)"/>
+
+  <!-- ============== HEADER ============== -->
+  <g font-family="'Inter', 'Neue Haas Grotesk', ui-sans-serif, system-ui, sans-serif">
+    <!-- Eyebrow -->
+    <circle cx="80" cy="78" r="4.5" fill="#D7A86E"/>
+    <text x="96" y="82" font-size="12" letter-spacing="3" fill="#B8A07D" font-weight="500">
+      CONTINUUM · PROGRESSIVE ASSET PIPELINE
+    </text>
+
+    <!-- Hero title -->
+    <text x="80" y="146" font-size="64" letter-spacing="-1.6" fill="#F5EDDC" font-weight="500">
+      Upload a model.
+    </text>
+    <text x="80" y="212" font-size="64" letter-spacing="-1.6" fill="#D7A86E" font-weight="500" font-style="italic">
+      We do the rest.
+    </text>
+
+    <!-- Subtitle -->
+    <text x="80" y="258" font-size="18" fill="#B8A07D" font-weight="400" letter-spacing="0.2">
+      A zero-code path from glTF to perceived-instant 3D. Server decimates, browser performs the reveal.
+    </text>
+  </g>
+
+  <!-- Horizontal rule -->
+  <line x1="80" y1="298" x2="1520" y2="298" stroke="#332820" stroke-width="1"/>
+
+  <!-- ============== ARCHITECTURE FLOW ============== -->
+  <g font-family="'Inter', 'Neue Haas Grotesk', ui-sans-serif, system-ui, sans-serif">
+
+    <!-- ========== LANE 1 · DESIGN ========== -->
+    <g>
+      <text x="80" y="356" font-size="11" letter-spacing="3.2" fill="#8B7355" font-weight="600">
+        01 · DESIGN
+      </text>
+      <text x="80" y="374" font-size="10" letter-spacing="1.4" fill="#6B5A48" font-weight="400">
+        designer
+      </text>
+
+      <!-- Box: Spline / Blender -->
+      <rect x="240" y="336" width="240" height="68" rx="4" fill="#15100A" stroke="#3D3024" stroke-width="1"/>
+      <text x="360" y="364" text-anchor="middle" font-size="16" fill="#F5EDDC" font-weight="500">Spline · Blender</text>
+      <text x="360" y="386" text-anchor="middle" font-size="12" fill="#8B7355" font-weight="400">authoring tool</text>
+
+      <!-- Box: Export .glb -->
+      <rect x="580" y="336" width="240" height="68" rx="4" fill="#15100A" stroke="#3D3024" stroke-width="1"/>
+      <text x="700" y="364" text-anchor="middle" font-size="16" fill="#F5EDDC" font-weight="500">Export .glb</text>
+      <text x="700" y="386" text-anchor="middle" font-size="12" fill="#8B7355" font-weight="400">one file · any scale</text>
+
+      <!-- Box: Drop in Supabase -->
+      <rect x="920" y="336" width="280" height="68" rx="4" fill="#15100A" stroke="#3D3024" stroke-width="1"/>
+      <text x="1060" y="364" text-anchor="middle" font-size="16" fill="#F5EDDC" font-weight="500">Drop in Supabase</text>
+      <text x="1060" y="386" text-anchor="middle" font-size="12" fill="#8B7355" font-weight="400">asset-sources bucket</text>
+
+      <!-- Arrows -->
+      <path d="M 480 370 L 578 370" stroke="#7A6A56" stroke-width="1.4" fill="none" marker-end="url(#arrowDim)"/>
+      <path d="M 820 370 L 918 370" stroke="#7A6A56" stroke-width="1.4" fill="none" marker-end="url(#arrowDim)"/>
+    </g>
+
+    <!-- Inter-lane connector 1→2 -->
+    <g>
+      <path d="M 1060 406 L 1060 436 L 360 436 L 360 466" stroke="#B8A07D" stroke-width="1.4" fill="none" stroke-dasharray="5 3" marker-end="url(#arrowBright)"/>
+      <text x="710" y="430" text-anchor="middle" font-size="11" fill="#B8A07D" font-style="italic" letter-spacing="0.3">
+        storage write event fires the Edge Function
+      </text>
+    </g>
+
+    <!-- ========== LANE 2 · INGEST ========== -->
+    <g>
+      <text x="80" y="488" font-size="11" letter-spacing="3.2" fill="#8B7355" font-weight="600">
+        02 · INGEST
+      </text>
+      <text x="80" y="506" font-size="10" letter-spacing="1.4" fill="#6B5A48" font-weight="400">
+        server · meshoptimizer
+      </text>
+
+      <!-- Box: Edge Function -->
+      <rect x="240" y="468" width="240" height="76" rx="4" fill="#15100A" stroke="#3D3024" stroke-width="1"/>
+      <text x="360" y="496" text-anchor="middle" font-size="16" fill="#F5EDDC" font-weight="500">Edge Function</text>
+      <text x="360" y="518" text-anchor="middle" font-size="12" fill="#8B7355" font-weight="400">reads source.glb</text>
+      <text x="360" y="534" text-anchor="middle" font-size="11" fill="#5E4F3F" font-weight="400" font-family="ui-monospace, SFMono-Regular, monospace">generateMeshLODs()</text>
+
+      <!-- Box: meshoptimizer (ACCENT) -->
+      <rect x="580" y="468" width="240" height="76" rx="4" fill="#2A1F10" stroke="#D7A86E" stroke-width="1.8"/>
+      <text x="700" y="494" text-anchor="middle" font-size="16" fill="#F5EDDC" font-weight="500">meshoptimizer</text>
+      <text x="700" y="514" text-anchor="middle" font-size="12" fill="#C9A872" font-weight="400">decimates at ratios</text>
+      <text x="700" y="532" text-anchor="middle" font-size="11" fill="#8B7355" font-weight="400" font-family="ui-monospace, SFMono-Regular, monospace">[0.02 · 0.15 · 0.5 · 1.0]</text>
+
+      <!-- Box: Write back -->
+      <rect x="920" y="468" width="280" height="76" rx="4" fill="#15100A" stroke="#3D3024" stroke-width="1"/>
+      <text x="1060" y="494" text-anchor="middle" font-size="16" fill="#F5EDDC" font-weight="500">Write back</text>
+      <text x="1060" y="514" text-anchor="middle" font-size="12" fill="#8B7355" font-weight="400">N tier .glbs + catalog row</text>
+      <text x="1060" y="532" text-anchor="middle" font-size="11" fill="#5E4F3F" font-weight="400" font-family="ui-monospace, SFMono-Regular, monospace">status = 'ready'</text>
+
+      <!-- Arrows -->
+      <path d="M 480 506 L 578 506" stroke="#7A6A56" stroke-width="1.4" fill="none" marker-end="url(#arrowDim)"/>
+      <path d="M 820 506 L 918 506" stroke="#7A6A56" stroke-width="1.4" fill="none" marker-end="url(#arrowDim)"/>
+    </g>
+
+    <!-- Inter-lane connector 2→3 -->
+    <g>
+      <path d="M 1060 546 L 1060 576 L 280 576 L 280 604" stroke="#B8A07D" stroke-width="1.4" fill="none" stroke-dasharray="5 3" marker-end="url(#arrowBright)"/>
+      <text x="670" y="570" text-anchor="middle" font-size="11" fill="#B8A07D" font-style="italic" letter-spacing="0.3">
+        user visits /auto · types asset id · browser fetches catalog
+      </text>
+    </g>
+
+    <!-- ========== LANE 3 · RENDER ========== -->
+    <g>
+      <text x="80" y="626" font-size="11" letter-spacing="3.2" fill="#8B7355" font-weight="600">
+        03 · RENDER
+      </text>
+      <text x="80" y="644" font-size="10" letter-spacing="1.4" fill="#6B5A48" font-weight="400">
+        browser · R3F
+      </text>
+
+      <!-- Box: useCatalogEntry -->
+      <rect x="200" y="606" width="200" height="68" rx="4" fill="#15100A" stroke="#3D3024" stroke-width="1"/>
+      <text x="300" y="634" text-anchor="middle" font-size="14" fill="#F5EDDC" font-weight="500" font-family="ui-monospace, SFMono-Regular, monospace">useCatalogEntry</text>
+      <text x="300" y="656" text-anchor="middle" font-size="12" fill="#8B7355" font-weight="400">fetch catalog row</text>
+
+      <!-- Box: useGLTF -->
+      <rect x="440" y="606" width="200" height="68" rx="4" fill="#15100A" stroke="#3D3024" stroke-width="1"/>
+      <text x="540" y="634" text-anchor="middle" font-size="14" fill="#F5EDDC" font-weight="500" font-family="ui-monospace, SFMono-Regular, monospace">useGLTF</text>
+      <text x="540" y="656" text-anchor="middle" font-size="12" fill="#8B7355" font-weight="400">load N tier .glbs</text>
+
+      <!-- Box: ProgressiveEngine (ACCENT) -->
+      <rect x="680" y="606" width="280" height="68" rx="4" fill="#2A1F10" stroke="#D7A86E" stroke-width="1.8"/>
+      <text x="820" y="630" text-anchor="middle" font-size="14" fill="#F5EDDC" font-weight="500" font-family="ui-monospace, SFMono-Regular, monospace">ProgressiveEngine</text>
+      <text x="820" y="648" text-anchor="middle" font-size="11" fill="#C9A872" font-weight="400">wireframe stack + hero</text>
+      <text x="820" y="663" text-anchor="middle" font-size="11" fill="#8B7355" font-weight="400">Doherty opacity schedule</text>
+
+      <!-- Box: User reveal -->
+      <rect x="1000" y="606" width="220" height="68" rx="4" fill="#15100A" stroke="#3D3024" stroke-width="1"/>
+      <text x="1110" y="634" text-anchor="middle" font-size="14" fill="#F5EDDC" font-weight="500">User sees reveal</text>
+      <text x="1110" y="656" text-anchor="middle" font-size="12" fill="#8B7355" font-weight="400">blueprint → material · ~2s</text>
+
+      <!-- Arrows -->
+      <path d="M 400 640 L 438 640" stroke="#7A6A56" stroke-width="1.4" fill="none" marker-end="url(#arrowDim)"/>
+      <path d="M 640 640 L 678 640" stroke="#7A6A56" stroke-width="1.4" fill="none" marker-end="url(#arrowDim)"/>
+      <path d="M 960 640 L 998 640" stroke="#7A6A56" stroke-width="1.4" fill="none" marker-end="url(#arrowDim)"/>
+    </g>
+  </g>
+
+  <!-- ============== REVEAL TIMELINE (bottom) ============== -->
+  <line x1="80" y1="716" x2="1520" y2="716" stroke="#332820" stroke-width="1"/>
+
+  <g font-family="'Inter', 'Neue Haas Grotesk', ui-sans-serif, system-ui, sans-serif">
+    <text x="80" y="756" font-size="11" letter-spacing="3.2" fill="#8B7355" font-weight="600">THE REVEAL</text>
+    <text x="80" y="776" font-size="14" fill="#B8A07D">What the browser actually shows, frame by frame</text>
+
+    <!-- Timeline track -->
+    <line x1="350" y1="810" x2="1500" y2="810" stroke="#332820" stroke-width="1"/>
+
+    <!-- Tier sample 1: very coarse wireframe -->
+    <g transform="translate(420 810)">
+      <g stroke="#D7A86E" stroke-width="1" fill="none" opacity="0.85">
+        <polygon points="0,-34 24,-24 34,0 24,24 0,34 -24,24 -34,0 -24,-24"/>
+        <polygon points="0,-34 0,34 M -34,0 L 34,0"/>
+        <rect x="-12" y="-50" width="24" height="16" rx="2"/>
+        <rect x="-12" y="34" width="24" height="16" rx="2"/>
+      </g>
+      <text x="0" y="80" text-anchor="middle" font-size="11" fill="#F5EDDC" font-weight="500">0 ms</text>
+      <text x="0" y="96" text-anchor="middle" font-size="10" fill="#8B7355">blueprint · LOD0</text>
+      <text x="0" y="110" text-anchor="middle" font-size="9" fill="#5E4F3F" font-family="ui-monospace, monospace">~ 500 tris</text>
+    </g>
+
+    <!-- Tier sample 2: denser wireframe -->
+    <g transform="translate(650 810)">
+      <g stroke="#D7A86E" stroke-width="0.9" fill="none" opacity="0.9">
+        <circle cx="0" cy="0" r="34"/>
+        <line x1="-34" y1="0" x2="34" y2="0"/>
+        <line x1="0" y1="-34" x2="0" y2="34"/>
+        <line x1="-24" y1="-24" x2="24" y2="24"/>
+        <line x1="24" y1="-24" x2="-24" y2="24"/>
+        <line x1="-34" y1="-14" x2="34" y2="-14"/>
+        <line x1="-34" y1="14" x2="34" y2="14"/>
+        <line x1="-14" y1="-34" x2="-14" y2="34"/>
+        <line x1="14" y1="-34" x2="14" y2="34"/>
+        <rect x="-12" y="-50" width="24" height="16" rx="2"/>
+        <line x1="-12" y1="-42" x2="12" y2="-42"/>
+        <rect x="-12" y="34" width="24" height="16" rx="2"/>
+        <line x1="-12" y1="42" x2="12" y2="42"/>
+      </g>
+      <text x="0" y="80" text-anchor="middle" font-size="11" fill="#F5EDDC" font-weight="500">400 ms</text>
+      <text x="0" y="96" text-anchor="middle" font-size="10" fill="#8B7355">densifying · LOD1</text>
+      <text x="0" y="110" text-anchor="middle" font-size="9" fill="#5E4F3F" font-family="ui-monospace, monospace">~ 1.2 k tris</text>
+    </g>
+
+    <!-- Tier sample 3: very dense wireframe -->
+    <g transform="translate(880 810)">
+      <g stroke="#D7A86E" stroke-width="0.7" fill="none" opacity="0.95">
+        <circle cx="0" cy="0" r="34"/>
+        <g>
+          <!-- Grid -->
+          <line x1="-34" y1="0" x2="34" y2="0"/>
+          <line x1="0" y1="-34" x2="0" y2="34"/>
+          <line x1="-30" y1="-16" x2="30" y2="-16"/>
+          <line x1="-30" y1="16" x2="30" y2="16"/>
+          <line x1="-24" y1="-26" x2="24" y2="-26"/>
+          <line x1="-24" y1="26" x2="24" y2="26"/>
+          <line x1="-16" y1="-30" x2="-16" y2="30"/>
+          <line x1="16" y1="-30" x2="16" y2="30"/>
+          <line x1="-26" y1="-24" x2="-26" y2="24"/>
+          <line x1="26" y1="-24" x2="26" y2="24"/>
+          <!-- Diagonals -->
+          <line x1="-24" y1="-24" x2="24" y2="24"/>
+          <line x1="24" y1="-24" x2="-24" y2="24"/>
+          <line x1="-30" y1="-12" x2="22" y2="30"/>
+          <line x1="30" y1="-12" x2="-22" y2="30"/>
+        </g>
+        <!-- Strap detail -->
+        <rect x="-12" y="-50" width="24" height="16" rx="2"/>
+        <line x1="-8" y1="-50" x2="-8" y2="-34"/>
+        <line x1="0" y1="-50" x2="0" y2="-34"/>
+        <line x1="8" y1="-50" x2="8" y2="-34"/>
+        <line x1="-12" y1="-42" x2="12" y2="-42"/>
+        <rect x="-12" y="34" width="24" height="16" rx="2"/>
+        <line x1="-8" y1="34" x2="-8" y2="50"/>
+        <line x1="0" y1="34" x2="0" y2="50"/>
+        <line x1="8" y1="34" x2="8" y2="50"/>
+        <line x1="-12" y1="42" x2="12" y2="42"/>
+      </g>
+      <text x="0" y="80" text-anchor="middle" font-size="11" fill="#F5EDDC" font-weight="500">900 ms</text>
+      <text x="0" y="96" text-anchor="middle" font-size="10" fill="#8B7355">structural · LOD2</text>
+      <text x="0" y="110" text-anchor="middle" font-size="9" fill="#5E4F3F" font-family="ui-monospace, monospace">~ 3.5 k tris</text>
+    </g>
+
+    <!-- Tier sample 4: materials fading in -->
+    <g transform="translate(1110 810)">
+      <!-- case fill with dim amber -->
+      <circle cx="0" cy="0" r="34" fill="#C9A44C" opacity="0.55"/>
+      <circle cx="0" cy="0" r="34" fill="none" stroke="#D7A86E" stroke-width="0.7" opacity="0.5"/>
+      <!-- dial -->
+      <circle cx="0" cy="0" r="24" fill="#F3EEE0" opacity="0.8"/>
+      <!-- hour marks -->
+      <g fill="#3B2719">
+        <rect x="-1" y="-22" width="2" height="5"/>
+        <rect x="-1" y="17" width="2" height="5"/>
+        <rect x="17" y="-1" width="5" height="2"/>
+        <rect x="-22" y="-1" width="5" height="2"/>
+      </g>
+      <!-- hands -->
+      <line x1="0" y1="0" x2="0" y2="-16" stroke="#2B1E0A" stroke-width="2" stroke-linecap="round"/>
+      <line x1="0" y1="0" x2="12" y2="6" stroke="#2B1E0A" stroke-width="1.5" stroke-linecap="round"/>
+      <!-- strap -->
+      <rect x="-14" y="-52" width="28" height="18" rx="3" fill="#3B2719" opacity="0.9"/>
+      <rect x="-14" y="34" width="28" height="18" rx="3" fill="#3B2719" opacity="0.9"/>
+
+      <text x="0" y="80" text-anchor="middle" font-size="11" fill="#F5EDDC" font-weight="500">1500 ms</text>
+      <text x="0" y="96" text-anchor="middle" font-size="10" fill="#8B7355">materials rising</text>
+      <text x="0" y="110" text-anchor="middle" font-size="9" fill="#5E4F3F" font-family="ui-monospace, monospace">crossfade</text>
+    </g>
+
+    <!-- Tier sample 5: final hero -->
+    <g transform="translate(1340 810)">
+      <!-- case -->
+      <circle cx="0" cy="0" r="34" fill="#C9A44C"/>
+      <circle cx="0" cy="0" r="30" fill="none" stroke="#8B6F2E" stroke-width="1"/>
+      <!-- crystal highlight -->
+      <ellipse cx="-8" cy="-10" rx="14" ry="8" fill="#F5EDDC" opacity="0.25"/>
+      <!-- dial -->
+      <circle cx="0" cy="0" r="24" fill="#F3EEE0"/>
+      <!-- hour marks -->
+      <g fill="#3B2719">
+        <rect x="-1" y="-22" width="2" height="5"/>
+        <rect x="-1" y="17" width="2" height="5"/>
+        <rect x="17" y="-1" width="5" height="2"/>
+        <rect x="-22" y="-1" width="5" height="2"/>
+        <rect x="14" y="-15" width="3" height="1.5" transform="rotate(30)"/>
+        <rect x="14" y="-15" width="3" height="1.5" transform="rotate(60)"/>
+      </g>
+      <!-- hands -->
+      <line x1="0" y1="0" x2="0" y2="-16" stroke="#2B1E0A" stroke-width="2.2" stroke-linecap="round"/>
+      <line x1="0" y1="0" x2="12" y2="6" stroke="#2B1E0A" stroke-width="1.6" stroke-linecap="round"/>
+      <circle cx="0" cy="0" r="1.6" fill="#2B1E0A"/>
+      <!-- strap -->
+      <rect x="-14" y="-52" width="28" height="18" rx="3" fill="#3B2719"/>
+      <rect x="-12" y="-50" width="24" height="14" rx="2" fill="none" stroke="#5A3820" stroke-width="0.6"/>
+      <rect x="-14" y="34" width="28" height="18" rx="3" fill="#3B2719"/>
+      <rect x="-12" y="36" width="24" height="14" rx="2" fill="none" stroke="#5A3820" stroke-width="0.6"/>
+
+      <text x="0" y="80" text-anchor="middle" font-size="11" fill="#F5EDDC" font-weight="500">2200 ms</text>
+      <text x="0" y="96" text-anchor="middle" font-size="10" fill="#D7A86E" font-weight="500">hero · LOD3</text>
+      <text x="0" y="110" text-anchor="middle" font-size="9" fill="#5E4F3F" font-family="ui-monospace, monospace">~ 9.3 k tris</text>
+    </g>
+
+    <!-- Dots on timeline -->
+    <g fill="#D7A86E">
+      <circle cx="420" cy="810" r="3"/>
+      <circle cx="650" cy="810" r="3"/>
+      <circle cx="880" cy="810" r="3"/>
+      <circle cx="1110" cy="810" r="3"/>
+      <circle cx="1340" cy="810" r="3"/>
+    </g>
+  </g>
+
+  <!-- ============== FOOTER ============== -->
+  <g font-family="'Inter', 'Neue Haas Grotesk', ui-sans-serif, system-ui, sans-serif">
+    <text x="80" y="878" font-size="11" fill="#5E4F3F" letter-spacing="1.5">
+      BUILT ON R3F · @gltf-transform · meshoptimizer · Supabase · Doherty threshold tuned to 700 ms per tier, clamped to 3200 ms total
+    </text>
+    <text x="1520" y="878" text-anchor="end" font-size="11" fill="#5E4F3F" letter-spacing="1.5">
+      CONTINUUM v2.0
+    </text>
+  </g>
+</svg>

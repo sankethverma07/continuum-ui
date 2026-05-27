@@ -1,0 +1,145 @@
+/* ============================================================================
+ * Continuum UI — global tokens + base layout utilities.
+ * Design language per CLAUDE.md §11: pure black, warm amber, hairlines, bento.
+ * ============================================================================ */
+
+:root {
+  /* ----- Neutral defaults. Each page overrides bg/fg to carry a dark pastel
+          derived from its hero asset's signature hex. ----------------------- */
+  --c-bg:         #120D08;   /* dark pastel fallback — warm charcoal */
+  --c-fg:         #F5EEE0;   /* warm off-white body text */
+  --c-fg-muted:   #B6AA97;
+  /* Global default accent is a softer pastel amber so the persistent
+     DemoSwitcher bar (which sits outside page-level palette scopes)
+     reads cleanly on any dark-pastel page background.                 */
+  --c-accent:     #F2B07A;
+  --c-accent-dim: rgba(242, 176, 122, 0.14);
+  --c-hairline:   rgba(244, 230, 209, 0.12);
+  --c-hairline-2: rgba(244, 230, 209, 0.06);
+
+  /* Olive/forest green — the viewer-panel color from the Framer mock.
+     Kept as its own token so only the hero viewer + cohesive accents pick
+     it up; the orange PRE-ORDER CTA stays amber per the reference image. */
+  --c-green:       #4A5C1F;
+  --c-green-fg:    #DDE7B4;      /* cream-green cursive overlay */
+  --c-green-deep:  #2F3C12;      /* inner vignette / fallout */
+  --c-green-rim:   #7B8E3E;      /* hairline on green panels */
+
+  /* Neue Montreal (Fontshare) is the ONE universal site sans-serif. We drop
+     Inter/Inter Tight from the fallback chain so FOUT can't swap between two
+     visibly different faces — if Fontshare is unavailable we fall all the
+     way to system-ui, which is a monochrome grotesque everywhere. */
+  --font-sans: "Neue Montreal", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-script: "Allura", "Pinyon Script", "Dancing Script", cursive;
+
+  --lead-tight:  1.04;
+  --lead-body:   1.55;
+
+  --page-gutter-x: clamp(20px, 4vw, 64px);
+  --section-y:     clamp(80px, 12vh, 160px);
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { margin: 0; padding: 0; background: var(--c-bg); color: var(--c-fg); }
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11", "tnum";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: var(--lead-body);
+}
+
+/* Minimal reset for typography */
+h1, h2, h3, h4, h5, h6, p, figure, blockquote { margin: 0; }
+/* Explicit Neue Montreal on every headline element so nothing inherits a
+   system stack via some future rule. Mono/script-tagged classes still win
+   because they set font-family themselves. */
+h1, h2, h3, h4, h5, h6, p, dd, dt, li, a, button, input, select, textarea {
+  font-family: var(--font-sans);
+}
+a { color: inherit; text-decoration: none; }
+button { font-family: var(--font-sans); color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+img, svg, canvas { display: block; max-width: 100%; }
+
+/* ---------- selection ---------- */
+::selection { background: var(--c-accent); color: var(--c-bg); }
+
+/* ---------- small utility classes ----------
+   Eyebrow + label both use the universal Neue Montreal (PP Neue Montreal)
+   stack — the same face as body text, just at small size + high tracking
+   so it reads as a HUD micro-label, not a paragraph. This is what keeps
+   HUD readouts, tile badges, caption tags, and inspector footers on ONE
+   visual voice instead of a mono/sans patchwork. */
+.u-eyebrow {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 2.4px;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--c-accent);
+}
+
+.u-label {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--c-fg-muted);
+}
+
+.u-hairline { border-top: 1px solid var(--c-hairline); }
+
+.u-container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding-left: var(--page-gutter-x);
+  padding-right: var(--page-gutter-x);
+}
+
+/* focus ring in brand color */
+:focus-visible {
+  outline: 1px solid var(--c-accent);
+  outline-offset: 2px;
+}
+
+/* reusable amber button */
+.c-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 22px;
+  background: var(--c-accent);
+  color: #111;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  border-radius: 2px;
+  transition: transform 180ms ease-out, box-shadow 180ms ease-out;
+}
+.c-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px -12px var(--c-accent);
+}
+.c-cta--ghost {
+  background: transparent;
+  color: var(--c-fg);
+  border: 1px solid var(--c-hairline);
+}
+.c-cta--ghost:hover { border-color: var(--c-accent); color: var(--c-accent); }
+
+/* noise overlay — optional, very subtle grain for depth */
+.u-grain::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  opacity: 0.3;
+  mix-blend-mode: overlay;
+  z-index: 99;
+}
