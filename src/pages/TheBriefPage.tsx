@@ -884,6 +884,13 @@ const DECISIONS: readonly Decision[] = [
     artifact: 'This page · /#/brief',
     artifactKind: 'route', link: '#/brief',
   },
+  {
+    id: 'd11', week: 'W3',
+    directive: '"The wireframe colour has to be readable on whatever page hosts it. Don\'t hard-code it."',
+    call: 'Added a `backgroundHex` prop to AutoProgressiveHero that runs the page background through a WCAG contrast check and auto-picks a blueprint colour that is always legible against it. Falls back to a designer-set `blueprintColor` only when explicitly overridden. Accessibility is the default, not the opt-in.',
+    artifact: '<AutoProgressiveHero backgroundHex="…" /> · README API table',
+    artifactKind: 'file',
+  },
 ];
 
 const DecisionCard = ({ week, directive, call, artifact, artifactKind, link }: Decision) => (
