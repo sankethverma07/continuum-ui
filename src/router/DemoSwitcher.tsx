@@ -27,17 +27,21 @@ const SEGMENTS: readonly Seg[] = [
   { key: 'brief',   chapter: '00', label: 'The Brief',         hint: 'PM view · research, sprint, A/B, decisions' },
   { key: 'problem', chapter: '01', label: 'The Problem',       hint: 'Why web 3D loads badly · framing' },
   { key: 'latency', chapter: '02', label: 'Bad Route · Spinner', hint: 'Naive load · the default failure' },
-  { key: 'ab',      chapter: '03', label: 'Bad Route · Swap',  hint: 'Low-poly placeholder pops · the second failure' },
+  { key: 'ab',      chapter: '03', label: 'A/B · Uniform vs Semantic', hint: 'Two Continuum variants · the comparison test' },
   { key: 'insight', chapter: '04', label: 'The Insight',       hint: 'Texture streaming, borrowed from games' },
   { key: 'proxy',   chapter: '05', label: 'Fix · Proxy Paint', hint: 'Position-only first paint · sub-100ms' },
   { key: 'watch',   chapter: '06', label: 'Fix · Tier Build',  hint: 'Triangles densify additively · no swap' },
-  { key: 'compare', chapter: '07', label: 'Fix · Material Fade', hint: 'PBR crossfades over the wireframe' },
-  { key: 'cloud',   chapter: '08', label: 'R&D · ColorCloud',  hint: 'Splat experiment · the honest side path' },
-  { key: 'scenes',  chapter: '09', label: 'The Choreography',  hint: 'All four phases · McLaren P1' },
-  { key: 'phone',   chapter: '10', label: 'The Product Page',  hint: 'GALAXY Z Fold · the perfected end-state' },
+  // NOTE: Chapter 07 ("Fix · Material Fade") was the SemanticComparePage
+  // (Galaxy Z Fold), but it duplicated Ch 03's Uniform-vs-Semantic story
+  // on a different asset. Removed from the chapter arc to keep the spine
+  // legible. SemanticComparePage stays reachable via secondary route 'Semantic LOD'.
+  { key: 'cloud',   chapter: '07', label: 'R&D · ColorCloud',  hint: 'Splat experiment · the honest side path' },
+  { key: 'scenes',  chapter: '08', label: 'The Choreography',  hint: 'All four phases · McLaren P1' },
+  { key: 'phone',   chapter: '09', label: 'The Product Page',  hint: 'GALAXY Z Fold · the perfected end-state' },
   // ── Secondary routes (out of arc) ────────────────────────────────
-  { key: 'demo',    label: 'Engine',    hint: 'Ingest + hydration showcase · landing' },
-  { key: 'auto',    label: 'Sandbox',   hint: 'Drop any .glb and watch it reveal' },
+  { key: 'compare', label: 'Semantic LOD', hint: 'Galaxy Z Fold · semantic vs uniform LOD' },
+  { key: 'demo',    label: 'Engine',      hint: 'Ingest + hydration showcase · landing' },
+  { key: 'auto',    label: 'Sandbox',     hint: 'Drop any .glb and watch it reveal' },
   { key: 'benchmark', label: 'Benchmark', hint: 'Cold-cache load timings · methodology caveat' },
 ] as const;
 

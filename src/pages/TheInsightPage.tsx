@@ -143,7 +143,7 @@ export const TheInsightPage = () => {
           <span className="chap__next-body">The first technical demo. A position-only outline that lands in under 100ms.</span>
         </a>
         <a className="chap__next-card" href="#/scenes">
-          <span className="chap__next-tag">Jump ahead · Chapter 09</span>
+          <span className="chap__next-tag">Jump ahead · Chapter 08</span>
           <span className="chap__next-title">The Choreography</span>
           <span className="chap__next-body">All three fixes composed: McLaren P1 from outline to photoreal.</span>
         </a>
@@ -368,7 +368,7 @@ const WEEKS: readonly WeekEntry[] = [
     phaseLabel: 'Ship',
     title: 'MIT · GitHub · Vercel',
     body: 'Licensed MIT for distribution. Three Vercel build attempts to land — first two failed on workspace-dep mismatches. Live at continuum-ui.vercel.app.',
-    tag: '→ Chapter 10',
+    tag: '→ Chapter 09',
   },
 ];
 

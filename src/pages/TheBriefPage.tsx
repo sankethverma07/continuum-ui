@@ -154,8 +154,8 @@ export const TheBriefPage = () => {
           number="Test #2"
           control="Uniform Continuum (now the control)"
           variant="Semantic Continuum"
-          link="#/ab"
-          linkLabel="See Test #2 live · Chapter 03 → 07"
+          link="#/compare"
+          linkLabel="See Test #2 live · Galaxy Z Fold semantic LOD"
           controlDef="Every part of the asset gains detail at the same rate. Wireframe densifies everywhere uniformly, PBR fades in everywhere together."
           variantDef="The asset region under the user's cursor / gaze resolves to PBR first. The periphery resolves while the user is moving on."
           measure="Where users look, time-to-perceived-final, qualitative feel."
@@ -229,7 +229,7 @@ export const TheBriefPage = () => {
           <span className="brief__next-body">Why beautiful web 3D feels broken on most product pages.</span>
         </a>
         <a className="brief__next-card" href="#/scenes">
-          <span className="brief__next-tag">Skip to the end · Chapter 09</span>
+          <span className="brief__next-tag">Skip to the end · Chapter 08</span>
           <span className="brief__next-title">The Choreography</span>
           <span className="brief__next-body">All four phases composed. McLaren P1 from outline to photoreal.</span>
         </a>
@@ -836,7 +836,7 @@ const DECISIONS: readonly Decision[] = [
     id: 'd2', week: 'W4',
     directive: '"Don\'t delete ColorCloud — wire it in. Dead code is a credibility tax."',
     call: 'Restored ColorCloud to a dedicated R&D route. Marked as a side path so it reads as a deliberate experiment, not residue.',
-    artifact: '/#/cloud · Chapter 08',
+    artifact: '/#/cloud · Chapter 07',
     artifactKind: 'route', link: '#/cloud',
   },
   {

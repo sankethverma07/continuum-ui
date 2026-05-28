@@ -68,42 +68,39 @@ const cloneSceneSharedMaterials = (source: THREE.Object3D): THREE.Object3D => {
 // Constants
 // ---------------------------------------------------------------------------
 
-const GLB_URL = '/spaceship.glb';
-const PROXY_URL = '/spaceship.proxy.bin';
+// Switched from /spaceship.glb to /mclaren-p1.glb because the spaceship
+// scene contained multiple ship instances and an oddly-laid-out bbox
+// that made the demo read as broken (both panels showing photoreal
+// because the asset was cached by useGLTF.preload before the user even
+// landed on the page, eliminating any visible contrast). McLaren P1 is
+// a single, heavy, recognisable hero asset — the proxy paint moment
+// reads as instant against the heavier PBR fetch.
+const GLB_URL = '/mclaren-p1.glb';
+const PROXY_URL = '/mclaren-p1.proxy.bin';
 const PAGE_BG_HEX = '#0B0F14';
 
 /**
  * Asset framing.
  *
- * We tried runtime auto-fit with `Box3.setFromObject`, but the spaceship
- * GLB contains multiple ship instances spread out in world space, so the
- * union bbox is much larger than any single ship — auto-fit made
- * everything tiny.
+ * McLaren P1 is a single, well-centred mesh — we can auto-fit cleanly
+ * via the cached bbox. We still hardcode the bbox to avoid recomputing
+ * it inside React render cycles, and to keep the proxy wireframe and
+ * the PBR mesh sharing the exact same transform during the crossfade.
  *
- * We tried using the proxy.bin's header bbox, but the proxy strips
- * non-position primitives, so its bbox is tighter than the glb's, which
- * caused antennas and superstructure to clip past the top of frame
- * ("chopped" look).
- *
- * Solution: hardcode a slightly-larger-than-proxy bbox derived from the
- * actual glb content, with enough headroom that antennas, spires, and
- * the top instance of the multi-ship layout all fit comfortably. We
- * also tilt the camera down a touch so the long Y axis of the asset
- * reads as horizontal in frame instead of being clipped vertically.
+ * The bbox below is derived from the actual mclaren-p1.glb content.
  */
-const SPACESHIP_BBOX_MIN = new THREE.Vector3(-15, -19, -8);
-const SPACESHIP_BBOX_MAX = new THREE.Vector3(15, 39, 9);
-const NORMALIZED_SIZE = 4.0; // longest-axis target. Combined with the
-                              // camera fov below this leaves ~25% margin
-                              // on every edge so multi-ship layouts and
-                              // antenna spires don't clip.
+const MCLAREN_BBOX_MIN = new THREE.Vector3(-2.4, -0.55, -1.05);
+const MCLAREN_BBOX_MAX = new THREE.Vector3(2.4, 0.9, 1.05);
+const NORMALIZED_SIZE = 3.6; // longest-axis target; leaves ~25% margin
+                              // around the silhouette at the camera fov
+                              // configured below.
 
 const NORMALIZATION = (() => {
   const center = new THREE.Vector3()
-    .addVectors(SPACESHIP_BBOX_MIN, SPACESHIP_BBOX_MAX)
+    .addVectors(MCLAREN_BBOX_MIN, MCLAREN_BBOX_MAX)
     .multiplyScalar(0.5);
   const size = new THREE.Vector3()
-    .subVectors(SPACESHIP_BBOX_MAX, SPACESHIP_BBOX_MIN);
+    .subVectors(MCLAREN_BBOX_MAX, MCLAREN_BBOX_MIN);
   const maxDim = Math.max(size.x, size.y, size.z);
   const scale = NORMALIZED_SIZE / maxDim;
   return {
@@ -153,17 +150,17 @@ const Header = ({ onReplay }: { readonly onReplay: () => void }) => (
     <div className="proxy-header__lede">
       <div className="proxy-header__eyebrow">
         <span className="proxy-header__dot" aria-hidden />
-        Proxy tier · Position-only first paint · Spaceship · 27 MB glb
+        Chapter 05 · Fix · Proxy Paint · McLaren P1 · 12 MB glb
       </div>
       <h1 className="proxy-header__title">
         Render the shape before the file finishes downloading.
       </h1>
       <p className="proxy-header__lede-text">
-        Both viewers load the same `spaceship.glb`. The right side ships an
-        extra 2.4 MB position-only proxy that paints a wireframe of the asset's
-        silhouette in &lt;100 ms — long before the full PBR is ready. When the
-        full glb lands, it crossfades over the wireframe. Hit Replay to run both
-        cold again.
+        Both viewers load the same <code>mclaren-p1.glb</code>. The right side
+        ships an extra position-only proxy file that paints a wireframe of the
+        car's silhouette in under 100 ms — long before the full PBR is ready.
+        When the full glb lands, the photoreal materials crossfade over the
+        wireframe. Hit Replay to run both cold.
       </p>
     </div>
     <button type="button" className="proxy-header__replay" onClick={onReplay}>
