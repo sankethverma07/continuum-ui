@@ -1,5 +1,6 @@
 import { useHydration } from '@continuum/hooks/useHydration';
 // ── Chapter pages (story-ordered) ────────────────────────────────────
+import { TheBriefPage }      from './pages/TheBriefPage';        // Ch 00
 import { TheProblemPage }    from './pages/TheProblemPage';      // Ch 01
 import { LatencyComparePage } from './pages/LatencyComparePage'; // Ch 02
 import { LoadingStrategyComparePage } from './pages/LoadingStrategyComparePage'; // Ch 03
@@ -28,6 +29,7 @@ export const App = () => {
     <>
       <DemoSwitcher />
       {/* Chapter arc */}
+      {route === 'brief'   && <TheBriefPage />}
       {route === 'problem' && <TheProblemPage />}
       {route === 'latency' && <LatencyComparePage />}
       {route === 'ab'      && <LoadingStrategyComparePage />}

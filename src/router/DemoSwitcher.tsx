@@ -24,6 +24,7 @@ interface Seg {
 
 const SEGMENTS: readonly Seg[] = [
   // ── The chapter arc ──────────────────────────────────────────────
+  { key: 'brief',   chapter: '00', label: 'The Brief',         hint: 'PM view · research, sprint, A/B, decisions' },
   { key: 'problem', chapter: '01', label: 'The Problem',       hint: 'Why web 3D loads badly · framing' },
   { key: 'latency', chapter: '02', label: 'Bad Route · Spinner', hint: 'Naive load · the default failure' },
   { key: 'ab',      chapter: '03', label: 'Bad Route · Swap',  hint: 'Low-poly placeholder pops · the second failure' },

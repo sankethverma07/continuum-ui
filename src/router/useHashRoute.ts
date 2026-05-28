@@ -16,6 +16,7 @@
 import { useEffect, useSyncExternalStore } from 'react';
 
 export type RouteKey =
+  | 'brief'     // Chapter 0 — PM brief: research, sprint, A/B, decision log
   | 'problem'   // Chapter 1 — frame the user problem
   | 'latency'   // Chapter 2 — bad route #1 (spinner death)
   | 'ab'        // Chapter 3 — bad route #2 (low-poly swap)
@@ -32,13 +33,14 @@ export type RouteKey =
   | 'benchmark';// cold-cache load timings
 
 const VALID: readonly RouteKey[] = [
-  'problem', 'latency', 'ab', 'insight', 'proxy', 'watch',
+  'brief', 'problem', 'latency', 'ab', 'insight', 'proxy', 'watch',
   'compare', 'cloud', 'scenes', 'phone',
   'demo', 'auto', 'benchmark',
 ] as const;
 
-// Chapter 1 is the new front door — story-ordered, not engine-ordered.
-const DEFAULT_ROUTE: RouteKey = 'problem';
+// Chapter 00 (the PM brief) is the new front door. A visitor lands on
+// the decision-log view first; the engineering chapters live behind it.
+const DEFAULT_ROUTE: RouteKey = 'brief';
 
 /** Parse `window.location.hash` → a RouteKey, defaulting to 'demo'.
  *  Takes only the first segment so `#/auto/skull` and `#/auto?asset=x`
