@@ -205,3 +205,55 @@ geometry (via the same parent + `inset: 0`) or delete it.
   LOD-gating can intercept.
 - Do not block the main thread on texture decode. KTX2 decodes on the GPU;
   Draco decodes in a worker. Configure both loaders up front.
+
+---
+
+## 14. Demo Structure Rule — Live LOD Tier Build
+
+**Every demo page that claims to show the engine must show the LOD build as
+visible, sequenced tiers the viewer can read.** This is a product rule, not a
+style preference. It exists because the engine's real value is the
+choreography between tiers — if the user can't see the tiers, the
+choreography is invisible and the demo is not doing its job.
+
+Concretely, every demo viewport must satisfy all four of the following:
+
+1. **Hold each tier for at least 800 ms** before advancing to the next, even
+   if the asset has finished loading. The user's eye needs that long to
+   register the change. A demo that completes faster than 800 ms per tier
+   has skipped the demonstration.
+2. **Display the current tier on screen** as `TIER N · <state>` (e.g.
+   `TIER 0 · POSITION PROXY`, `TIER 1 · WIREFRAME 4K TRIS`,
+   `TIER 2 · WIREFRAME 30K TRIS`, `TIER 3 · PBR FADE-IN`,
+   `TIER 4 · FINAL`). The label changes when the tier advances. This is the
+   only way the viewer learns what each tier looks like.
+3. **The control side of any A/B demo must NEVER finish before the variant
+   side does.** If the control finishes faster, the demo is showing the
+   wrong story (it's a speed test, not a perception test). Cap both sides
+   to the same wall-clock budget; the variant wins on what the user
+   perceives during that budget, not on total time.
+4. **Replay must be re-runnable cold.** Pressing Replay must reset every
+   tier back to TIER 0 immediately and start over, even on a warm asset
+   cache. If a viewer cannot watch the build twice, they will assume the
+   build does not happen at all.
+5. **No stray blueprint / skeleton primitives may render outside an active
+   tier.** Components like `BlueprintMark`, `BlueprintConstructionGrid`,
+   `BlueprintParagraph`, `WireframeProxy`, and `SkeletonCardFrame` are part
+   of the tier system — they exist only because a tier is in flight. They
+   must NEVER render during page transitions, route changes, hydration
+   warm-up, or "stable" final states. The default for these components is
+   `visible={false}`; a tier explicitly turns them on and explicitly turns
+   them off when it advances. Flashing blueprint lines during a route
+   change is the user seeing the system's seams — fail mode.
+
+Demos that violate this rule have failed in the past:
+- ProxyDemoPage (Ch 05) — both sides finished in ~16ms vs ~11s because the
+  cache was warm and the proxy paint happened faster than human perception.
+  Result: identical-looking panels. Failure mode #1, #4.
+- WatchShowcasePage (Ch 06, original procedural version) — never displayed
+  what tier was active. The user saw a moving watch and had to guess what
+  the engine was doing. Failure mode #2.
+
+When in doubt, slow the demo down. The audience for these pages is recruiters
+and designers who have never seen progressive 3D before. The demo's job is to
+TEACH the concept, not to brag about throughput.
