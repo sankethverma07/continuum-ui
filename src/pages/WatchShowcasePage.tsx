@@ -127,20 +127,16 @@ export const WatchShowcasePage = () => {
           position: relative;
           width: 100%;
           height: clamp(440px, 64vh, 720px);
-          border: 1px solid var(--c-hairline, rgba(244,236,216,0.18));
-          border-radius: 6px;
-          overflow: hidden;
-          background: #0A0E16;
+          background: transparent;
         }
         .ch06__notes {
           display: grid; grid-template-columns: repeat(3, 1fr);
-          gap: 16px;
+          gap: 36px;
         }
         .ch06__note {
-          padding: 20px 22px;
-          border: 1px solid var(--c-hairline, rgba(244,236,216,0.18));
-          border-radius: 4px;
-          background: rgba(244,236,216,0.025);
+          padding: 0;
+          border-top: 1px solid var(--c-hairline, rgba(244,236,216,0.18));
+          padding-top: 18px;
         }
         .ch06__note-tag {
           font-size: 10px; letter-spacing: 1.6px; text-transform: uppercase;
@@ -163,15 +159,11 @@ export const WatchShowcasePage = () => {
         }
         .ch06__next-card {
           display: flex; flex-direction: column; gap: 8px;
-          padding: 20px 22px;
-          border: 1px solid var(--c-hairline, rgba(244,236,216,0.18));
-          border-radius: 4px; text-decoration: none; color: inherit;
-          transition: border-color 160ms ease, background 160ms ease;
+          padding: 0;
+          text-decoration: none; color: inherit;
+          transition: opacity 160ms ease;
         }
-        .ch06__next-card:hover {
-          border-color: var(--c-accent, #e8a857);
-          background: var(--c-accent-dim, rgba(232,168,87,0.06));
-        }
+        .ch06__next-card:hover { opacity: 0.75; }
         .ch06__next-tag {
           font-size: 10px; letter-spacing: 1.8px; text-transform: uppercase;
           color: var(--c-accent, #e8a857);

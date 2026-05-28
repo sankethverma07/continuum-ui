@@ -142,17 +142,12 @@ export const TheProblemPage = () => {
           display: flex;
           flex-direction: column;
           gap: 8px;
-          padding: 20px 22px;
-          border: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
-          border-radius: 4px;
+          padding: 0;
           text-decoration: none;
           color: inherit;
-          transition: border-color 160ms ease, background 160ms ease;
+          transition: opacity 160ms ease;
         }
-        .chap__next-card:hover {
-          border-color: var(--c-accent, #e8a857);
-          background: var(--c-accent-dim, rgba(232,168,87,0.06));
-        }
+        .chap__next-card:hover { opacity: 0.75; }
         .chap__next-tag {
           font-size: 10px;
           letter-spacing: 1.8px;

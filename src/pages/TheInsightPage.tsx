@@ -202,14 +202,13 @@ export const TheInsightPage = () => {
         .chap__grid-3 {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          gap: 18px;
-          margin-bottom: 24px;
+          gap: 36px;
+          margin-bottom: 28px;
         }
         .chap__card {
-          padding: 22px 20px;
-          border: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
-          border-radius: 4px;
-          background: rgba(244,236,216,0.02);
+          padding: 0;
+          border-top: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
+          padding-top: 18px;
         }
         .chap__card-tag {
           font-size: 9px;
@@ -275,17 +274,12 @@ export const TheInsightPage = () => {
           display: flex;
           flex-direction: column;
           gap: 8px;
-          padding: 20px 22px;
-          border: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
-          border-radius: 4px;
+          padding: 0;
           text-decoration: none;
           color: inherit;
-          transition: border-color 160ms ease, background 160ms ease;
+          transition: opacity 160ms ease;
         }
-        .chap__next-card:hover {
-          border-color: var(--c-accent, #e8a857);
-          background: var(--c-accent-dim, rgba(232,168,87,0.06));
-        }
+        .chap__next-card:hover { opacity: 0.75; }
         .chap__next-tag {
           font-size: 10px;
           letter-spacing: 1.8px;
@@ -406,10 +400,8 @@ const Timeline = () => {
       </div>
       <style>{`
         .tl {
-          background: rgba(10,7,3,0.55);
-          border: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
-          padding: 28px;
-          border-radius: 4px;
+          background: transparent;
+          padding: 0;
         }
         .tl__head {
           margin-bottom: 24px;
@@ -431,11 +423,10 @@ const Timeline = () => {
         .tl__grid {
           display: grid;
           grid-template-columns: repeat(6, 1fr);
-          border-left: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
+          gap: 28px;
         }
         .tl__cell {
-          padding: 14px 12px;
-          border-right: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
+          padding: 0;
         }
         .tl__num {
           font-size: 10px;

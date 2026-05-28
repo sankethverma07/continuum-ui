@@ -270,11 +270,12 @@ export const TheBriefPage = () => {
           text-transform: uppercase;
         }
         .ref-grid {
-          display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
+          display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px;
         }
         .ref-card {
-          padding: 22px 20px; border: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
-          border-radius: 4px; background: rgba(244,236,216,0.02);
+          padding: 0;
+          border-top: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
+          padding-top: 18px;
           display: flex; flex-direction: column; gap: 12px;
         }
         .ref-card__tag {
@@ -294,9 +295,8 @@ export const TheBriefPage = () => {
           color: var(--c-fg, #f4ecd8);
         }
         .brief__synthesis {
-          margin-top: 24px; padding: 22px 24px;
-          background: var(--c-accent-dim, rgba(232,168,87,0.06));
-          border: 1px solid var(--c-accent, #e8a857); border-radius: 4px;
+          margin-top: 32px; padding: 18px 0 0 18px;
+          border-left: 2px solid var(--c-accent, #e8a857);
         }
         .brief__synth-tag {
           font-size: 10px; letter-spacing: 1.6px; text-transform: uppercase;
@@ -314,11 +314,12 @@ export const TheBriefPage = () => {
         }
         .brief__thesis p strong { color: var(--c-fg, #f4ecd8); font-weight: 500; }
         .thesis-grid {
-          display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 28px;
+          display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; margin-top: 36px;
         }
         .thesis-card {
-          padding: 18px 18px; border: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
-          border-radius: 4px;
+          padding: 0;
+          border-top: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
+          padding-top: 18px;
         }
         .thesis-card__tag {
           font-size: 9px; letter-spacing: 1.6px; text-transform: uppercase;
@@ -327,17 +328,17 @@ export const TheBriefPage = () => {
         .thesis-card__body { font-size: 12px; line-height: 1.55;
           color: var(--c-fg-muted, rgba(244,236,216,0.7)); }
         .iter-grid {
-          display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+          display: grid; grid-template-columns: 1fr 1fr; gap: 36px;
         }
         .iter-card {
-          padding: 22px 22px; border-radius: 4px;
-          border: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
+          padding: 18px 0 0 0;
+          border-top: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
         }
         .iter-card.is-chosen {
-          border-color: var(--c-accent, #e8a857);
-          background: var(--c-accent-dim, rgba(232,168,87,0.06));
+          border-top-color: var(--c-accent, #e8a857);
+          border-top-width: 2px;
         }
-        .iter-card.is-rejected { opacity: 0.7; }
+        .iter-card.is-rejected { opacity: 0.6; }
         .iter-card__label {
           font-size: 13px; letter-spacing: 1.4px; text-transform: uppercase;
           margin-bottom: 12px;
@@ -352,15 +353,14 @@ export const TheBriefPage = () => {
           padding-top: 10px; border-top: 1px solid var(--c-hairline, rgba(244,236,216,0.1));
         }
         .iter__example {
-          margin-top: 24px; padding: 20px 22px;
+          margin-top: 28px; padding: 0 0 0 18px;
           border-left: 2px solid var(--c-accent, #e8a857);
-          background: rgba(244,236,216,0.025);
           font-size: 14px; line-height: 1.6;
           color: var(--c-fg-muted, rgba(244,236,216,0.78));
         }
         .iter__example strong { color: var(--c-accent, #e8a857); font-weight: 500; }
         .dlog {
-          display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+          display: grid; grid-template-columns: 1fr 1fr; gap: 36px;
         }
         .brief__next {
           margin-top: 64px; padding-top: 32px;
@@ -369,14 +369,11 @@ export const TheBriefPage = () => {
         }
         .brief__next-card {
           display: flex; flex-direction: column; gap: 8px;
-          padding: 20px 22px; border: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
-          border-radius: 4px; text-decoration: none; color: inherit;
-          transition: border-color 160ms ease, background 160ms ease;
+          padding: 0;
+          text-decoration: none; color: inherit;
+          transition: opacity 160ms ease;
         }
-        .brief__next-card:hover {
-          border-color: var(--c-accent, #e8a857);
-          background: var(--c-accent-dim, rgba(232,168,87,0.06));
-        }
+        .brief__next-card:hover { opacity: 0.75; }
         .brief__next-tag {
           font-size: 10px; letter-spacing: 1.8px; text-transform: uppercase;
           color: var(--c-accent, #e8a857);
@@ -584,32 +581,30 @@ const SprintBoard = () => (
     ))}
     <style>{`
       .sprint {
-        border: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
-        border-radius: 4px; overflow: hidden;
-        background: rgba(10,7,3,0.4);
+        background: transparent;
       }
       .sprint__head, .sprint__row {
         display: grid;
         grid-template-columns: 110px 1.2fr 1.6fr 1.4fr 1.4fr 1.2fr;
-        gap: 0;
+        gap: 24px;
       }
       .sprint__head {
-        background: rgba(244,236,216,0.04);
         border-bottom: 1px solid var(--c-accent, #e8a857);
+        padding-bottom: 4px;
       }
       .sprint__head > div {
-        padding: 12px 14px;
+        padding: 8px 0;
         font-size: 10px; letter-spacing: 1.6px; text-transform: uppercase;
         color: var(--c-accent, #e8a857); font-weight: 500;
       }
       .sprint__row {
-        border-bottom: 1px solid var(--c-hairline, rgba(244,236,216,0.08));
+        border-bottom: 1px solid var(--c-hairline, rgba(244,236,216,0.1));
+        padding: 6px 0;
       }
       .sprint__row:last-child { border-bottom: none; }
-      .sprint__row > div { padding: 14px 14px; }
+      .sprint__row > div { padding: 14px 0; }
       .sprint__week {
-        background: rgba(244,236,216,0.02);
-        border-right: 1px solid var(--c-hairline, rgba(244,236,216,0.08));
+        background: transparent;
       }
       .sprint__week-num {
         font-size: 11px; letter-spacing: 1.8px; text-transform: uppercase;
@@ -716,23 +711,23 @@ const ABTest = ({
     </div>
     <style>{`
       .ab {
-        border: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
-        border-radius: 4px; padding: 24px 24px;
-        margin-bottom: 18px;
-        background: rgba(10,7,3,0.4);
+        padding: 0;
+        margin-bottom: 48px;
+        border-top: 1px solid var(--c-accent, #e8a857);
+        padding-top: 22px;
       }
       .ab__head {
         display: grid;
         grid-template-columns: auto 1fr auto;
         align-items: center;
-        gap: 18px; margin-bottom: 18px;
+        gap: 18px; margin-bottom: 24px;
         padding-bottom: 14px;
         border-bottom: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
       }
       .ab__num {
         font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
-        color: var(--c-accent, #e8a857); padding: 4px 10px;
-        border: 1px solid var(--c-accent, #e8a857); border-radius: 2px;
+        color: var(--c-accent, #e8a857);
+        font-weight: 500;
       }
       .ab__vs {
         display: inline-flex; align-items: center; gap: 12px;
@@ -745,23 +740,18 @@ const ABTest = ({
       .ab__link {
         font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase;
         color: var(--c-accent, #e8a857); text-decoration: none;
-        padding: 6px 12px; border: 1px solid var(--c-hairline, rgba(244,236,216,0.2));
-        border-radius: 2px;
       }
-      .ab__link:hover { border-color: var(--c-accent, #e8a857); }
+      .ab__link:hover { opacity: 0.7; }
       .ab__defs {
-        display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;
+        display: grid; grid-template-columns: 1fr 1fr; gap: 36px; margin-bottom: 24px;
       }
       .ab__def, .ab__measure, .ab__decision {
-        padding: 14px 16px;
-        border: 1px solid var(--c-hairline, rgba(244,236,216,0.1));
-        border-radius: 3px;
+        padding: 0;
       }
-      .ab__measure { margin-bottom: 16px; }
+      .ab__measure { margin-bottom: 24px; }
       .ab__decision {
-        margin-top: 16px;
-        background: var(--c-accent-dim, rgba(232,168,87,0.06));
-        border-color: var(--c-accent, #e8a857);
+        margin-top: 24px; padding-left: 18px;
+        border-left: 2px solid var(--c-accent, #e8a857);
       }
       .ab__def-tag, .ab__measure-tag, .ab__decision-tag {
         font-size: 9px; letter-spacing: 1.6px; text-transform: uppercase;
@@ -792,9 +782,8 @@ const ABTest = ({
       .ab__win--b { color: var(--c-accent, #e8a857); }
       .ab__win--tie, .ab__win--— { color: var(--c-fg-muted, rgba(244,236,216,0.4)); }
       .ab__pattern {
-        margin-top: 24px; padding: 20px 22px;
+        margin-top: 32px; padding: 0 0 0 18px;
         border-left: 2px solid var(--c-accent, #e8a857);
-        background: rgba(244,236,216,0.025);
       }
       .ab__pattern-tag {
         font-size: 10px; letter-spacing: 1.6px; text-transform: uppercase;
@@ -912,16 +901,15 @@ const DecisionCard = ({ week, directive, call, artifact, artifactKind, link }: D
     )}
     <style>{`
       .dlog__card {
-        padding: 18px 20px;
-        border: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
-        border-radius: 4px; background: rgba(244,236,216,0.02);
+        padding: 18px 0 0 0;
+        border-top: 1px solid var(--c-hairline, rgba(244,236,216,0.12));
         display: flex; flex-direction: column; gap: 12px;
       }
       .dlog__head { display: flex; justify-content: space-between; align-items: center; }
       .dlog__week {
         font-size: 9px; letter-spacing: 1.6px; text-transform: uppercase;
         color: var(--c-accent, #e8a857);
-        padding: 3px 8px; border: 1px solid var(--c-accent, #e8a857); border-radius: 2px;
+        font-weight: 500;
       }
       .dlog__kind {
         font-size: 9px; letter-spacing: 1.4px; text-transform: uppercase;
