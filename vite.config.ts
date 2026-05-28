@@ -2,29 +2,54 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 
-import { continuumProxyPlugin } from './tools/vite-plugin-continuum-proxy';
+// The continuum-proxy plugin pulls in @gltf-transform/* + meshoptimizer
+// from the `ingest/` package, which aren't dependencies of the root
+// project. Vercel's CI runs `npm install` only at the root and would
+// fail to resolve them during a production build.
+//
+// The proxies are committed to public/ alongside their glbs, so prod
+// builds don't NEED to regenerate them — only dev needs the auto-gen
+// for the convenience of "drop a glb in public/ and forget."
+//
+// So: load the plugin lazily and only register it in dev mode.
 
-export default defineConfig({
-  plugins: [
-    react(),
-    // Auto-generate position-only `.proxy.bin` for every `.glb` in
-    // public/ at server start + build start. Removes the manual CLI
-    // step and makes the `<AutoProgressiveHero src=... proxy />` API
-    // truly one-line. See tools/vite-plugin-continuum-proxy.ts.
-    continuumProxyPlugin({ emitGzip: true }),
-  ],
-  resolve: {
-    alias: {
-      '@continuum': path.resolve(__dirname, 'src/continuum'),
+export default defineConfig(async ({ command }) => {
+  const plugins: import('vite').PluginOption[] = [react()];
+
+  if (command === 'serve') {
+    try {
+      const { continuumProxyPlugin } = await import(
+        './tools/vite-plugin-continuum-proxy'
+      );
+      plugins.push(continuumProxyPlugin({ emitGzip: true }));
+    } catch (err) {
+      // Plugin's optional. If the ingest deps aren't installed
+      // (e.g. fresh clone, npm install not yet run in ingest/),
+      // dev mode just skips proxy auto-generation. Committed
+      // .proxy.bin files in public/ still work.
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[vite] continuum-proxy plugin not loaded — committed .proxy.bin files will still serve.',
+        (err as Error).message,
+      );
+    }
+  }
+
+  return {
+    plugins,
+    resolve: {
+      alias: {
+        '@continuum': path.resolve(__dirname, 'src/continuum'),
+      },
     },
-  },
-  assetsInclude: ['**/*.glb', '**/*.ktx2'],
-  server: {
-    port: 5173,
-    host: true,
-  },
-  build: {
-    target: 'es2022',
-    sourcemap: true,
-  },
+    assetsInclude: ['**/*.glb', '**/*.ktx2'],
+    server: {
+      port: 5173,
+      host: true,
+    },
+    build: {
+      target: 'es2022',
+      sourcemap: true,
+    },
+  };
 });
