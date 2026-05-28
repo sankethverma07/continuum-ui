@@ -1,14 +1,15 @@
 /**
  * <DemoSwitcher /> — fixed pill bar at the top of every page.
  *
- * Three segments:
- *   - Continuum     → ingest + hydration engine showcase
- *   - Galaxy Z Fold → product page (uniform LOD hydration)
- *   - Compare       → semantic vs uniform progressive rendering research
+ * Ten chronological chapters that walk a reader from "why does 3D feel
+ * broken on the web" → "here are two patterns that don't work" → "here's
+ * what game engines do" → "here are the three fixes that compose into
+ * Continuum" → "here is the perfected product page." The story is
+ * deliberate; the chapter numbers are visible in the tab labels so the
+ * narrative arc is legible at a glance.
  *
- * The active one gets an amber underline + cream label; the others stay
- * muted. Rendered ABOVE each page's own <Nav /> so the user can always
- * jump between surfaces without scrolling. Height ~36px.
+ * Three secondary routes (Engine landing, Auto sandbox, Benchmark) live
+ * past the chapter arc and remain reachable via deep link.
  */
 
 import { useHashRoute, navigate } from './useHashRoute';
@@ -16,22 +17,27 @@ import type { RouteKey } from './useHashRoute';
 
 interface Seg {
   readonly key: RouteKey;
+  readonly chapter?: string;
   readonly label: string;
   readonly hint: string;
 }
 
 const SEGMENTS: readonly Seg[] = [
-  { key: 'demo',    label: 'Continuum',     hint: 'Hydration engine · variable-tier' },
-  { key: 'phone',   label: 'GALAXY Z Fold', hint: 'Product page · uniform LOD' },
-  { key: 'compare', label: 'Compare',       hint: 'Uniform vs semantic LOD · research' },
-  { key: 'latency', label: 'Latency',       hint: 'Perceived-latency study · before vs after' },
-  { key: 'watch',   label: 'Atelier',       hint: 'Photorealistic dress watch · procedural' },
-  { key: 'auto',    label: 'Auto',          hint: 'Upload any .glb · ingest-driven blueprint' },
-  { key: 'ab',      label: 'A/B Loading',   hint: 'Uniform vs semantic progressive · McLaren P1' },
-  { key: 'proxy',   label: 'Proxy Tier',    hint: 'Position-only first paint · spaceship' },
-  { key: 'scenes',    label: 'Scenes',    hint: 'Live wireframe → color cloud → PBR · McLaren' },
-  { key: 'cloud',     label: 'Cloud',     hint: 'Surface-sampled splat moment · skull' },
-  { key: 'benchmark', label: 'Benchmark', hint: 'Real cold-cache load timings · all assets' },
+  // ── The chapter arc ──────────────────────────────────────────────
+  { key: 'problem', chapter: '01', label: 'The Problem',       hint: 'Why web 3D loads badly · framing' },
+  { key: 'latency', chapter: '02', label: 'Bad Route · Spinner', hint: 'Naive load · the default failure' },
+  { key: 'ab',      chapter: '03', label: 'Bad Route · Swap',  hint: 'Low-poly placeholder pops · the second failure' },
+  { key: 'insight', chapter: '04', label: 'The Insight',       hint: 'Texture streaming, borrowed from games' },
+  { key: 'proxy',   chapter: '05', label: 'Fix · Proxy Paint', hint: 'Position-only first paint · sub-100ms' },
+  { key: 'watch',   chapter: '06', label: 'Fix · Tier Build',  hint: 'Triangles densify additively · no swap' },
+  { key: 'compare', chapter: '07', label: 'Fix · Material Fade', hint: 'PBR crossfades over the wireframe' },
+  { key: 'cloud',   chapter: '08', label: 'R&D · ColorCloud',  hint: 'Splat experiment · the honest side path' },
+  { key: 'scenes',  chapter: '09', label: 'The Choreography',  hint: 'All four phases · McLaren P1' },
+  { key: 'phone',   chapter: '10', label: 'The Product Page',  hint: 'GALAXY Z Fold · the perfected end-state' },
+  // ── Secondary routes (out of arc) ────────────────────────────────
+  { key: 'demo',    label: 'Engine',    hint: 'Ingest + hydration showcase · landing' },
+  { key: 'auto',    label: 'Sandbox',   hint: 'Drop any .glb and watch it reveal' },
+  { key: 'benchmark', label: 'Benchmark', hint: 'Cold-cache load timings · methodology caveat' },
 ] as const;
 
 export const DemoSwitcher = () => {
@@ -53,9 +59,12 @@ export const DemoSwitcher = () => {
                 type="button"
                 role="tab"
                 aria-selected={isActive}
-                className={`demo-switcher__tab ${isActive ? 'is-active' : ''}`}
+                className={`demo-switcher__tab ${isActive ? 'is-active' : ''} ${seg.chapter ? 'has-chapter' : 'is-secondary'}`}
                 onClick={() => navigate(seg.key)}
               >
+                {seg.chapter ? (
+                  <span className="demo-switcher__chapter">CH {seg.chapter}</span>
+                ) : null}
                 <span className="demo-switcher__label">{seg.label}</span>
                 <span className="demo-switcher__hint">{seg.hint}</span>
               </button>
@@ -130,6 +139,29 @@ export const DemoSwitcher = () => {
           border-color: var(--c-accent);
           box-shadow: inset 0 -2px 0 var(--c-accent);
         }
+        .demo-switcher__chapter {
+          font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+          font-size: 9px;
+          letter-spacing: 1.4px;
+          color: var(--c-accent);
+          padding: 2px 6px;
+          border: 1px solid var(--c-accent);
+          border-radius: 2px;
+          opacity: 0.7;
+        }
+        .demo-switcher__tab.is-active .demo-switcher__chapter {
+          opacity: 1;
+          background: var(--c-accent);
+          color: var(--c-bg, #0a0703);
+        }
+        .demo-switcher__tab.is-secondary {
+          opacity: 0.55;
+          margin-left: 16px;
+          padding-left: 16px;
+          border-left: 1px solid var(--c-hairline);
+          border-radius: 0;
+        }
+        .demo-switcher__tab.is-secondary:hover { opacity: 0.9; }
         .demo-switcher__label {
           font-family: var(--font-sans);
           font-size: 12px;

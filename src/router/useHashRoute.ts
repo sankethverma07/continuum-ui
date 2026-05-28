@@ -15,10 +15,30 @@
 
 import { useEffect, useSyncExternalStore } from 'react';
 
-export type RouteKey = 'demo' | 'phone' | 'compare' | 'latency' | 'watch' | 'auto' | 'ab' | 'proxy' | 'scenes' | 'cloud' | 'benchmark';
+export type RouteKey =
+  | 'problem'   // Chapter 1 — frame the user problem
+  | 'latency'   // Chapter 2 — bad route #1 (spinner death)
+  | 'ab'        // Chapter 3 — bad route #2 (low-poly swap)
+  | 'insight'   // Chapter 4 — texture-streaming analogy + 7-week timeline
+  | 'proxy'     // Chapter 5 — fix #1: position-only proxy paint
+  | 'watch'     // Chapter 6 — fix #2: tier-by-tier geometry build
+  | 'compare'   // Chapter 7 — fix #3: PBR material crossfade
+  | 'cloud'     // Chapter 8 — R&D side path (ColorCloud splat)
+  | 'scenes'    // Chapter 9 — the full choreography (McLaren)
+  | 'phone'     // Chapter 10 — the perfected product page (Galaxy Z Fold)
+  // Secondary / utility routes, not in the chapter arc:
+  | 'demo'      // engine showcase landing (legacy default)
+  | 'auto'      // drop-any-glb sandbox
+  | 'benchmark';// cold-cache load timings
 
-const VALID: readonly RouteKey[] = ['demo', 'phone', 'compare', 'latency', 'watch', 'auto', 'ab', 'proxy', 'scenes', 'cloud', 'benchmark'] as const;
-const DEFAULT_ROUTE: RouteKey = 'demo';
+const VALID: readonly RouteKey[] = [
+  'problem', 'latency', 'ab', 'insight', 'proxy', 'watch',
+  'compare', 'cloud', 'scenes', 'phone',
+  'demo', 'auto', 'benchmark',
+] as const;
+
+// Chapter 1 is the new front door — story-ordered, not engine-ordered.
+const DEFAULT_ROUTE: RouteKey = 'problem';
 
 /** Parse `window.location.hash` → a RouteKey, defaulting to 'demo'.
  *  Takes only the first segment so `#/auto/skull` and `#/auto?asset=x`
