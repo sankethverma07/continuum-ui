@@ -12,6 +12,9 @@ import { AutoProgressiveHero } from '@continuum/components/AutoProgressiveHero';
 
 One component, any glb, no spinner.
 
+**Live demo:** [continuum-ui.vercel.app](https://continuum-ui.vercel.app)
+**Source:** [github.com/sankethverma07/continuum-ui](https://github.com/sankethverma07/continuum-ui)
+
 ---
 
 ## Why this exists
@@ -40,7 +43,7 @@ component.
 ## Quick start
 
 ```bash
-git clone https://github.com/<your-username>/continuum-ui
+git clone https://github.com/sankethverma07/continuum-ui
 cd continuum-ui
 npm install
 npm run dev      # → http://localhost:5173
