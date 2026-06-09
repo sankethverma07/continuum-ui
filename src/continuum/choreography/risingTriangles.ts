@@ -227,15 +227,12 @@ export interface RisingTrianglesUniforms {
 export const createRisingTrianglesUniforms = (
   matteHex: string = '#bdb5a4',
   edgeHex: string = '#e8a857',
-  riseDistance: number = 0.28,
+  riseDistance: number = 0.42,
 ): RisingTrianglesUniforms => ({
   uTrianglesReveal:  { value: 0 },
   uTrianglesFadeOut: { value: 0 },
   uRiseDistance:     { value: riseDistance },
-  // 0.18 means each triangle takes 18 % of the rise stage to travel
-  // from displaced-inward to settled — slow enough that the eye can
-  // unambiguously track the motion of any single triangle.
-  uRiseWindow:       { value: 0.18 },
+  uRiseWindow:       { value: 0.06 },
   uMatteColor:       { value: new THREE.Color(matteHex) },
   uEdgeColor:        { value: new THREE.Color(edgeHex) },
   uBuildShimmer:     { value: 0 },
@@ -274,21 +271,14 @@ const FRAG = /* glsl */`
 
     // Simple Lambert-style shading so the matte tone reads as 3D.
     float lambert = clamp(dot(normalize(vNormalWorld), normalize(vec3(0.4, 0.7, 0.5))), 0.0, 1.0);
-    vec3 shaded = uMatteColor * (0.5 + 0.5 * lambert);
+    vec3 shaded = uMatteColor * (0.55 + 0.45 * lambert);
 
-    // Rising triangles glow brightly during the rise so the eye reads
-    // them as individual objects in motion. The glow softens as the
-    // triangle settles on the surface.
+    // Rising triangles glow amber; the glow fades as they settle.
     float glow = 1.0 - vEmergence;
-    // Triangle in flight: pure edge color + brightness boost.
-    vec3 inFlight = uEdgeColor * (1.3 + uBuildShimmer * 0.3);
-    vec3 settled  = shaded;
-    vec3 col = mix(settled, inFlight, glow);
-    // Soft additive halo for newly-emerging triangles.
-    col += uEdgeColor * pow(glow, 1.5) * 0.4;
+    vec3 col = mix(shaded, uEdgeColor, glow * 0.75);
+    col += uEdgeColor * uBuildShimmer * 0.08 * glow;
 
-    // Higher base alpha so triangles are clearly visible against any bg.
-    float alpha = (1.0 - uTrianglesFadeOut) * (0.78 + vEmergence * 0.22);
+    float alpha = (1.0 - uTrianglesFadeOut) * (0.55 + vEmergence * 0.45);
     gl_FragColor = vec4(col, alpha);
   }
 `;
@@ -302,15 +292,7 @@ export const createRisingTrianglesMaterial = (
     fragmentShader: FRAG,
     transparent: true,
     depthWrite: false,
-    // depthTest off so particles always paint on top of whatever's behind
-    // them — eliminates any chance the source mesh or wireframe is
-    // occluding them via depth-buffer remnants.
-    depthTest: false,
     side: THREE.DoubleSide,
-    // Additive-ish blending so the rising amber triangles glow brightly
-    // against the dark background — pure "on top" rendering, no premultiplied
-    // alpha surprises.
-    blending: THREE.AdditiveBlending,
   });
 };
 
@@ -323,6 +305,14 @@ export interface BuildRisingTrianglesOpts {
   readonly triangleSize?: number;
   /** Mulberry32 seed for reproducible scatter. */
   readonly seed?: number;
+  /**
+   * Diagnostic mode. When true, replaces the shader material with a
+   * solid red MeshBasicMaterial — no displacement, no animation, no
+   * discard. If you see red triangles in the right shape, the sampler
+   * + geometry are correct and any invisibility bug is in the shader.
+   * If you see nothing, the bug is in the sampling or merge step.
+   */
+  readonly diag?: boolean;
 }
 
 /**
@@ -335,11 +325,8 @@ export const buildRisingTriangles = (
   uniforms: RisingTrianglesUniforms,
   opts: BuildRisingTrianglesOpts = {},
 ): THREE.Mesh | null => {
-  const count = opts.count ?? 1400;
-  // 0.12 is conspicuously large — about 4 % of a normalized 3.4-unit
-  // asset, ~24 pixels per triangle at typical viewport sizes. The
-  // rise should be unmissable at this size.
-  const triangleSize = opts.triangleSize ?? 0.12;
+  const count = opts.count ?? 3000;
+  const triangleSize = opts.triangleSize ?? 0.05;
   const seed = opts.seed ?? 42;
 
   const samples = sampleSurface(root, count);
@@ -352,9 +339,28 @@ export const buildRisingTriangles = (
   }
 
   const geom = buildTrianglesFromSamples(samples, triangleSize, seed);
-  const mat  = createRisingTrianglesMaterial(uniforms);
+  const mat = opts.diag
+    ? new THREE.MeshBasicMaterial({
+        color: 0xff2266,
+        side: THREE.DoubleSide,
+        transparent: false,
+        depthWrite: true,
+        depthTest: false,
+      })
+    : createRisingTrianglesMaterial(uniforms);
   const mesh = new THREE.Mesh(geom, mat);
   mesh.frustumCulled = false;
-  mesh.renderOrder = 10; // after everything else
+  mesh.renderOrder = opts.diag ? 100 : 3; // diag goes on top of everything
+  if (opts.diag) {
+    geom.computeBoundingBox();
+    geom.computeBoundingSphere();
+    // eslint-disable-next-line no-console
+    console.info(
+      `[continuum-choreo:diag] particle bbox`,
+      geom.boundingBox?.min.toArray(),
+      '→',
+      geom.boundingBox?.max.toArray(),
+    );
+  }
   return mesh;
 };

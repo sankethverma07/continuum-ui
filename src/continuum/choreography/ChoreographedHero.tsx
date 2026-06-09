@@ -172,12 +172,27 @@ const ChoreographyStage = ({
   );
 
   // Build the rising-triangles particle layer. Sampled uniformly across
-  // every mesh's surface. Defaults inside buildRisingTriangles produce
-  // ~1400 conspicuously-large triangles for unmissable visibility during
-  // the pure-particle window of the timeline.
+  // every mesh's surface. Defaults: 3000 small triangles (0.05 obj-space
+  // units each). This becomes the visible surface during the rise stage;
+  // the actual mesh stays hidden (uSurfaceReveal=0) until particles
+  // complete.
+  //
+  // Diagnostic mode: append "?diag=tri" to the URL to render the
+  // particles as bright red MeshBasicMaterial with no displacement,
+  // no discard, always on top — used to prove whether the sampler is
+  // producing geometry in the right position.
+  const isDiagMode =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('diag') === 'tri';
+
   const risingTriangles = useMemo(
-    () => buildRisingTriangles(scene, triUniforms, { seed: 42 }),
-    [scene, triUniforms],
+    () => buildRisingTriangles(scene, triUniforms, {
+      count: 3000,
+      triangleSize: 0.05,
+      seed: 42,
+      diag: isDiagMode,
+    }),
+    [scene, triUniforms, isDiagMode],
   );
 
   // Normalize position + scale to a unit-ish cube so any asset frames cleanly.
