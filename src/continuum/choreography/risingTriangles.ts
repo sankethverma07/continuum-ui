@@ -47,10 +47,21 @@ const isolateSurfaceMeshes = (root: THREE.Object3D): THREE.Mesh[] => {
 };
 
 /**
- * Recursively subdivide a triangle until every edge is below
- * `targetEdgeLength`. Each step splits 1 triangle into 4 via midpoint
- * subdivision. Output is appended to the provided arrays as
- * non-indexed triangle vertices (3 vertices per face, no sharing).
+ * Recursively subdivide a triangle, CURVATURE-AWARE. The effective
+ * target edge length is scaled up on flat faces and stays at the
+ * base value on curved ones, so:
+ *
+ *   - Flat panels (hood, doors, roof) get coarse triangles — fewer
+ *     subdivisions because their normals are nearly parallel.
+ *   - Curved areas (fenders, wheel arches, grille slats, headlight
+ *     surrounds) keep finer triangles because their normals diverge.
+ *
+ * Curvature metric: the minimum dot product between any two of the
+ * face's three vertex normals. 1.0 = perfectly flat; ≈ 0.7 = highly
+ * curved. We linearly remap [0.7 → 1.0] to [0 → 1] flatness, then
+ * scale the effective edge target by (1 + flatness × 3). So a fully
+ * flat face uses 4× the base target — meaning it has to be 4× as
+ * large as a curved face before it gets subdivided.
  */
 const subdivideFace = (
   v0: THREE.Vector3, v1: THREE.Vector3, v2: THREE.Vector3,
@@ -72,7 +83,18 @@ const subdivideFace = (
   const e20 = v2.distanceTo(v0);
   const maxEdge = Math.max(e01, e12, e20);
 
-  if (maxEdge <= targetEdgeLength) {
+  // Curvature: minimum dot product between any pair of vertex normals.
+  // Closer to 1 = flatter face. Closer to 0.7 = highly curved.
+  const minDot = Math.min(
+    Math.min(n0.dot(n1), n1.dot(n2)),
+    n2.dot(n0),
+  );
+  // Remap [0.7, 1.0] → [0, 1]. Anything more curved than 0.7 clamps to 0.
+  const flatness = Math.max(0, Math.min(1, (minDot - 0.7) / 0.3));
+  // Flat faces get up to 4× the base target → much less subdivision.
+  const effectiveTarget = targetEdgeLength * (1 + flatness * 3);
+
+  if (maxEdge <= effectiveTarget) {
     positions.push(v0.x, v0.y, v0.z, v1.x, v1.y, v1.z, v2.x, v2.y, v2.z);
     normals.push(n0.x, n0.y, n0.z, n1.x, n1.y, n1.z, n2.x, n2.y, n2.z);
     return;

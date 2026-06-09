@@ -187,12 +187,15 @@ const ChoreographyStage = ({
 
   const risingTriangles = useMemo(
     () => buildRisingTriangles(scene, triUniforms, {
-      // Target edge length 0.12 — only faces with edges LARGER than this
-      // get subdivided. Smaller source faces stay as-is, which naturally
-      // gives the BMW variable triangle sizes: large panels (hood, doors)
-      // get coarser triangulation, detailed areas (wheel arches, grille)
-      // keep their finer source geometry. Reads as "designed for the shape."
-      targetEdgeLength: 0.12,
+      // Base target edge length. CURVATURE-AWARE: flat faces get up to
+      // 4× this (so they stay coarse), curved faces use the base (so they
+      // keep detail). With 0.16 as the base, flat panels effectively
+      // tessellate at ~0.64-unit edges (very coarse on a normalised car)
+      // while curved areas keep ~0.16-unit triangles (detailed).
+      // Net result: roughly half the triangle count of uniform 0.12 mode,
+      // and the BMW's hood/roof read as clean tessellated panels instead
+      // of a uniform grid.
+      targetEdgeLength: 0.16,
       diag: isDiagMode,
     }),
     [scene, triUniforms, isDiagMode],
