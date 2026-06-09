@@ -37,11 +37,6 @@ import {
   createWireframeUniforms,
   type WireframeShellMaterialUniforms,
 } from './wireframeShell';
-import {
-  buildRisingTriangles,
-  createRisingTrianglesUniforms,
-  type RisingTrianglesUniforms,
-} from './risingTriangles';
 import { useTimeline } from './useTimeline';
 import { engineExtendLoader } from '../utils/configureGLTFLoader';
 
@@ -151,12 +146,6 @@ const ChoreographyStage = ({
     [edgeHex],
   );
 
-  // Rising-triangles uniforms — particle layer that forms the surface.
-  const triUniforms = useMemo<RisingTrianglesUniforms>(
-    () => createRisingTrianglesUniforms(matteHex, edgeHex),
-    [matteHex, edgeHex],
-  );
-
   // Bake (or read pre-baked) revealTime per vertex, then patch materials.
   useMemo(() => {
     ensureRevealTime(scene, 42);
@@ -171,60 +160,22 @@ const ChoreographyStage = ({
     [scene, wireUniforms],
   );
 
-  // Build the rising-triangles particle layer. Sampled uniformly across
-  // every mesh's surface. Defaults: 3000 small triangles (0.05 obj-space
-  // units each). This becomes the visible surface during the rise stage;
-  // the actual mesh stays hidden (uSurfaceReveal=0) until particles
-  // complete.
-  //
-  // Diagnostic mode: append "?diag=tri" to the URL to render the
-  // particles as bright red MeshBasicMaterial with no displacement,
-  // no discard, always on top — used to prove whether the sampler is
-  // producing geometry in the right position.
-  const isDiagMode =
-    typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('diag') === 'tri';
-
-  const risingTriangles = useMemo(
-    () => buildRisingTriangles(scene, triUniforms, {
-      // PER-MESH triangle sizing — 30 % of each mesh's sqrt(surfaceArea).
-      // The metric is real triangle-summed surface area, NOT bbox, so a
-      // flat hood (huge area, modest bbox) gets bigger triangles than a
-      // long thin antenna (small area, large bbox).
-      //   - Hood / window / roof → very large triangles (3–4 across).
-      //   - Wheel rim / brake disc → medium triangles.
-      //   - Spokes / lights / mirrors → small triangles.
-      meshSizeRatio: 0.30,
-      diag: isDiagMode,
-    }),
-    [scene, triUniforms, isDiagMode],
-  );
-
   // Normalize position + scale to a unit-ish cube so any asset frames cleanly.
   const fit = useMemo(() => {
     const box = new THREE.Box3().setFromObject(scene);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
     const maxAxis = Math.max(size.x, size.y, size.z) || 1;
-    return { offset: center.clone().negate(), scale: 3.4 / maxAxis, centerWorld: center.clone() };
+    return { offset: center.clone().negate(), scale: 3.4 / maxAxis };
   }, [scene]);
-
-  // Push the asset's centre into the particle shader so triangles emerge
-  // along the direction from centre outward. This is in scene-local space,
-  // matching the geometry the particles are computed against.
-  useMemo(() => {
-    triUniforms.uAssetCenter.value.copy(fit.centerWorld);
-  }, [triUniforms, fit]);
 
   const { uniformsRef, isComplete } = useTimeline(runToken);
 
   // Push the sampled uniforms into the shader uniform group every frame.
   const groupRef = useRef<THREE.Group>(null);
   const reportedRef = useRef(false);
-  const loggedSamplesRef = useRef(0);
   useEffect(() => {
     reportedRef.current = false;
-    loggedSamplesRef.current = 0;
   }, [runToken]);
 
   useFrame((_, dt) => {
@@ -238,20 +189,6 @@ const ChoreographyStage = ({
     wireUniforms.uWireframeReveal.value  = u.wireframeReveal;
     wireUniforms.uWireframeFadeOut.value = u.wireframeFadeOut;
     wireUniforms.uBuildShimmer.value     = u.buildShimmer;
-    triUniforms.uAttack.value            = u.trianglesReveal;
-    triUniforms.uFadeOut.value           = u.trianglesFadeOut;
-    triUniforms.uFillReveal.value        = u.trianglesFillReveal;
-    triUniforms.uTime.value              = performance.now() / 1000;
-
-    // Debug: emit one log line each time trianglesReveal crosses a 25 %
-    // threshold so we can confirm in the console that the particle stage
-    // is actually ticking up. Drop after the rise is verified.
-    const crossedAt = Math.floor(u.trianglesReveal * 4);
-    if (crossedAt > loggedSamplesRef.current) {
-      loggedSamplesRef.current = crossedAt;
-      // eslint-disable-next-line no-console
-      console.info(`[continuum-choreo] trianglesReveal=${u.trianglesReveal.toFixed(2)}  surfaceReveal=${u.surfaceReveal.toFixed(2)}  wire=${u.wireframeFadeOut.toFixed(2)}`);
-    }
 
     if (groupRef.current && autoRotate > 0) {
       groupRef.current.rotation.y += autoRotate * dt;
@@ -272,7 +209,6 @@ const ChoreographyStage = ({
       {shells.map((shell, i) => (
         <primitive key={i} object={shell} />
       ))}
-      {risingTriangles ? <primitive object={risingTriangles} /> : null}
     </group>
   );
 };
