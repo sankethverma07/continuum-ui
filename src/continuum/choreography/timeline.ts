@@ -51,6 +51,17 @@ export interface TimelineUniforms {
   readonly surfaceReveal: number;
   /** 0 → 1 crossfade from matte form to full PBR materials. */
   readonly pbrMix: number;
+  /**
+   * 3-layer PBR transition, in order of perceptual weight:
+   *   colorMix      — first, the asset gains its base colour
+   *   shadowMix     — second, ambient occlusion + surface depth lands
+   *   reflectionMix — last, metallic/clearcoat reflections kick in
+   * These overlap slightly so the transitions read as smooth.
+   * All three reach 1 by the end of the timeline.
+   */
+  readonly colorMix:      number;
+  readonly shadowMix:     number;
+  readonly reflectionMix: number;
   /** Cosmetic shimmer that pulses softly during the build. */
   readonly buildShimmer: number;
   /** Convenience: 0 → 1 across the whole timeline, for clients that want a single progress value. */
@@ -58,7 +69,7 @@ export interface TimelineUniforms {
 }
 
 /** Total wall-clock duration of one reveal, in milliseconds. */
-export const TIMELINE_TOTAL_MS = 8800;
+export const TIMELINE_TOTAL_MS = 11400;
 
 /** Subtle tail after the last keyframe so the final state settles without snapping. */
 export const TIMELINE_TAIL_MS = 200;
@@ -101,22 +112,37 @@ export const sampleTimeline = (elapsedMs: number): TimelineUniforms => {
 
   const WIRE_BUILD_START = 400;
   const WIRE_BUILD_PEAK  = 2400;
-  const WIRE_FADE_START  = 3000;
-  const WIRE_FADE_END    = 3600;
+  // Wireframe stays at full opacity for the entire reveal. Setting the
+  // fade window beyond the timeline total means wireframeFadeOut never
+  // ramps up — the amber blueprint is visible all the way through.
+  const WIRE_FADE_START  = 99999;
+  const WIRE_FADE_END    = 99999;
 
-  // Particle stage now covers four phases per triangle (rise + hold +
-  // fill + settled). uAttack ramps 0→1 over 4.4 seconds so each
-  // individual triangle's four phases are clearly readable.
+  // Particle stage extended to 6.4 s so the per-triangle 4-phase
+  // build (rise → hold-as-outline → fill → settled) is leisurely
+  // enough to read clearly. The long hold-as-outline window is where
+  // visible cluster groups form before they "commit" to fill.
   const TRI_RISE_START = 2400;
-  const TRI_RISE_END   = 6800;
-  const TRI_FADE_START = 7000;
-  const TRI_FADE_END   = 8000;
+  const TRI_RISE_END   = 8800;
+  const TRI_FADE_START = 9000;
+  const TRI_FADE_END   = 10200;
 
-  const SURFACE_START = 6800;      // actual mesh begins to appear under particles
-  const SURFACE_END   = 8000;      // actual mesh fully visible
+  const SURFACE_START = 8400;      // actual mesh begins to appear under particles
+  const SURFACE_END   = 10200;     // actual mesh fully visible
 
-  const PBR_START = 8000;
-  const PBR_END   = 8800;
+  // 3-layer PBR: color first, then shadow, then reflection. The
+  // windows overlap by ~300 ms for smooth perceived continuity.
+  const COLOR_START      = 9600;
+  const COLOR_END        = 10400;
+  const SHADOW_START     = 10100;
+  const SHADOW_END       = 10800;
+  const REFLECTION_START = 10500;
+  const REFLECTION_END   = 11400;
+
+  // Legacy single-uniform PBR ramp covers the full layered window for
+  // backward-compat readers. The 3 staged uniforms drive the actual visual.
+  const PBR_START = COLOR_START;
+  const PBR_END   = REFLECTION_END;
 
   // ── proxyOpacity: 0 → 1 (fast) → hold → 0 (gentle handoff). ──
   let proxyOpacity = 0;
@@ -185,6 +211,11 @@ export const sampleTimeline = (elapsedMs: number): TimelineUniforms => {
   // ── pbrMix: 0 during the matte form stage, ramps to 1 at the end. ──
   const pbrMix = smoothstep(PBR_START, PBR_END, elapsedMs);
 
+  // ── Layered PBR: color → shadow → reflection ──────────────────
+  const colorMix      = smoothstep(COLOR_START,      COLOR_END,      elapsedMs);
+  const shadowMix     = smoothstep(SHADOW_START,     SHADOW_END,     elapsedMs);
+  const reflectionMix = smoothstep(REFLECTION_START, REFLECTION_END, elapsedMs);
+
   // ── buildShimmer: pulses across the wireframe + triangles stages. ──
   const inBuild = elapsedMs > PROXY_HOLD_END && elapsedMs < TRI_RISE_END;
   const shimmerEnvelope = inBuild
@@ -203,6 +234,9 @@ export const sampleTimeline = (elapsedMs: number): TimelineUniforms => {
     trianglesFadeOut,
     surfaceReveal,
     pbrMix,
+    colorMix,
+    shadowMix,
+    reflectionMix,
     buildShimmer,
     progress,
   };
@@ -217,6 +251,9 @@ export const INITIAL_UNIFORMS: TimelineUniforms = {
   trianglesFadeOut: 0,
   surfaceReveal: 0,
   pbrMix: 0,
+  colorMix: 0,
+  shadowMix: 0,
+  reflectionMix: 0,
   buildShimmer: 0,
   progress: 0,
 };

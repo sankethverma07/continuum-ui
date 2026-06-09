@@ -187,11 +187,12 @@ const ChoreographyStage = ({
 
   const risingTriangles = useMemo(
     () => buildRisingTriangles(scene, triUniforms, {
-      // Target edge length 0.08 — every face of the source mesh is
-      // recursively subdivided until all edges fall below this.
-      // Produces a continuous, fully-covering triangulation that wraps
-      // the BMW with no holes. Expect ~5–10k triangles for a car-sized asset.
-      targetEdgeLength: 0.08,
+      // Target edge length 0.12 — only faces with edges LARGER than this
+      // get subdivided. Smaller source faces stay as-is, which naturally
+      // gives the BMW variable triangle sizes: large panels (hood, doors)
+      // get coarser triangulation, detailed areas (wheel arches, grille)
+      // keep their finer source geometry. Reads as "designed for the shape."
+      targetEdgeLength: 0.12,
       diag: isDiagMode,
     }),
     [scene, triUniforms, isDiagMode],
@@ -221,6 +222,9 @@ const ChoreographyStage = ({
     const u = uniformsRef.current;
     uniforms.uSurfaceReveal.value        = u.surfaceReveal;
     uniforms.uPbrMix.value               = u.pbrMix;
+    uniforms.uColorMix.value             = u.colorMix;
+    uniforms.uShadowMix.value            = u.shadowMix;
+    uniforms.uReflectionMix.value        = u.reflectionMix;
     uniforms.uBuildShimmer.value         = u.buildShimmer;
     wireUniforms.uWireframeReveal.value  = u.wireframeReveal;
     wireUniforms.uWireframeFadeOut.value = u.wireframeFadeOut;

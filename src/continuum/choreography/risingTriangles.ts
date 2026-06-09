@@ -227,12 +227,16 @@ export const createRisingTrianglesUniforms = (
 ): RisingTrianglesUniforms => ({
   uAttack:         { value: 0 },
   uTime:           { value: 0 },
-  uRiseDistance:   { value: 0.18 },
-  uRiseWindow:     { value: 0.08 },
-  uFillDelay:      { value: 0.10 },
-  uFillWindow:     { value: 0.08 },
-  uJitterAmount:   { value: 0.025 },
-  uEdgeThickness:  { value: 0.10 },
+  uRiseDistance:   { value: 0.22 },
+  // Slow rise so the eye can clearly track each triangle's climb.
+  uRiseWindow:     { value: 0.15 },
+  // Long hold as outline — this is the "wireframe builds, clusters form,
+  // THEN they commit" beat the user wants to see.
+  uFillDelay:      { value: 0.30 },
+  // Slower fill ramp once it starts.
+  uFillWindow:     { value: 0.12 },
+  uJitterAmount:   { value: 0.020 },
+  uEdgeThickness:  { value: 0.12 },
   uFadeOut:        { value: 0 },
   uMatteColor:     { value: new THREE.Color(matteHex) },
   uEdgeColor:      { value: new THREE.Color(edgeHex) },

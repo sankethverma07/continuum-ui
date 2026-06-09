@@ -30,23 +30,18 @@ const PATCHED_FLAG = '__continuumChoreographyPatched';
 
 export interface ChoreographyUniformGroup {
   readonly uSurfaceReveal: { value: number };
+  /** Legacy single PBR mix — driven for backward compat but not used in the shader anymore. */
   readonly uPbrMix:        { value: number };
+  /** Layer 1: matte → +baseColor texture contribution. */
+  readonly uColorMix:      { value: number };
+  /** Layer 2: + AO / surface depth (shadows under wheel arches, panel seams, etc.). */
+  readonly uShadowMix:     { value: number };
+  /** Layer 3: + metallic + reflections + clearcoat. */
+  readonly uReflectionMix: { value: number };
   readonly uMatteColor:    { value: THREE.Color };
   readonly uBuildShimmer:  { value: number };
   readonly uEdgeColor:     { value: THREE.Color };
-  /**
-   * How far below the final surface each triangle starts, in object-space
-   * units. Each vertex begins at `position - normal * uRiseDistance` and
-   * animates back to `position` during its individual rise window.
-   * 0.0 disables the rise; ~0.15–0.35 is a good visual range.
-   */
   readonly uRiseDistance:  { value: number };
-  /**
-   * Width of each vertex's rise window, as a fraction of the global
-   * surface-reveal ramp. 0.04 means each vertex takes 4% of the surface
-   * stage to rise from inside to its final position. Smaller = sharper
-   * cluster boundaries; larger = softer, more cross-fade-y.
-   */
   readonly uRiseWindow:    { value: number };
 }
 
@@ -56,6 +51,9 @@ export const createChoreographyUniforms = (
 ): ChoreographyUniformGroup => ({
   uSurfaceReveal: { value: 0 },
   uPbrMix:        { value: 0 },
+  uColorMix:      { value: 0 },
+  uShadowMix:     { value: 0 },
+  uReflectionMix: { value: 0 },
   uMatteColor:    { value: new THREE.Color(matteHex) },
   uBuildShimmer:  { value: 0 },
   uEdgeColor:     { value: new THREE.Color(edgeHex) },
@@ -97,6 +95,9 @@ const patchMaterial = (
     // will be picked up next compile, without a manual sync step.
     shader.uniforms.uSurfaceReveal = uniforms.uSurfaceReveal;
     shader.uniforms.uPbrMix        = uniforms.uPbrMix;
+    shader.uniforms.uColorMix      = uniforms.uColorMix;
+    shader.uniforms.uShadowMix     = uniforms.uShadowMix;
+    shader.uniforms.uReflectionMix = uniforms.uReflectionMix;
     shader.uniforms.uMatteColor    = uniforms.uMatteColor;
     shader.uniforms.uBuildShimmer  = uniforms.uBuildShimmer;
     shader.uniforms.uEdgeColor     = uniforms.uEdgeColor;
@@ -151,6 +152,9 @@ const patchMaterial = (
       #include <common>
       uniform float uSurfaceReveal;
       uniform float uPbrMix;
+      uniform float uColorMix;
+      uniform float uShadowMix;
+      uniform float uReflectionMix;
       uniform vec3  uMatteColor;
       uniform float uBuildShimmer;
       uniform vec3  uEdgeColor;
@@ -176,13 +180,21 @@ const patchMaterial = (
       '#include <dithering_fragment>',
       `
       #include <dithering_fragment>
+
+      // ── Three-layer PBR composition. Each layer adds visible weight
+      //    to the final colour:
+      //      Layer 1 · COLOR      (45%) — base colour appears (matte → diffuse)
+      //      Layer 2 · SHADOW     (30%) — surface depth (AO, panel seams)
+      //      Layer 3 · REFLECTION (25%) — metallic/clearcoat reflections
+      //    Total layer weight reaches 1.0 when all three uniforms are at 1.
       vec3 matteShaded = uMatteColor * (0.55 + 0.45 * max(dot(normalize(vNormal), vec3(0.4, 0.7, 0.5)), 0.0));
-      vec3 mixed = mix(matteShaded, gl_FragColor.rgb, uPbrMix);
-      // Rising triangles glow at the amber edge colour; the glow
-      // fades as the triangle reaches the final surface and the
-      // matte/PBR result becomes its full value.
-      vec3 edgeTinted = mix(mixed, uEdgeColor, edgeFactor * 0.75 * (1.0 - uPbrMix * 0.6));
-      vec3 shimmered = edgeTinted + uEdgeColor * uBuildShimmer * 0.08 * (1.0 - uPbrMix);
+      float layerWeight = uColorMix * 0.45 + uShadowMix * 0.30 + uReflectionMix * 0.25;
+      vec3 mixed = mix(matteShaded, gl_FragColor.rgb, layerWeight);
+
+      // Edge-glow on the rising triangles (still on the source mesh's
+      // vertex displacement during emergence).
+      vec3 edgeTinted = mix(mixed, uEdgeColor, edgeFactor * 0.75 * (1.0 - layerWeight * 0.6));
+      vec3 shimmered = edgeTinted + uEdgeColor * uBuildShimmer * 0.08 * (1.0 - layerWeight);
       gl_FragColor.rgb = shimmered;
       `,
     );
