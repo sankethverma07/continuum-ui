@@ -32,6 +32,11 @@ import {
   type ChoreographyUniformGroup,
 } from './surfaceReveal';
 import { ensureRevealTime } from './computeRevealTime';
+import {
+  collectWireframeShells,
+  createWireframeUniforms,
+  type WireframeShellMaterialUniforms,
+} from './wireframeShell';
 import { useTimeline } from './useTimeline';
 import { engineExtendLoader } from '../utils/configureGLTFLoader';
 
@@ -135,11 +140,25 @@ const ChoreographyStage = ({
     [matteHex, edgeHex],
   );
 
+  // Wireframe-shell uniforms — drive the signature blueprint moment.
+  const wireUniforms = useMemo<WireframeShellMaterialUniforms>(
+    () => createWireframeUniforms(edgeHex),
+    [edgeHex],
+  );
+
   // Bake (or read pre-baked) revealTime per vertex, then patch materials.
   useMemo(() => {
     ensureRevealTime(scene, 42);
     applySurfaceReveal(scene, uniforms);
   }, [scene, uniforms]);
+
+  // Build the wireframe shells once per scene. We materialise the result
+  // as a memoized list of THREE.LineSegments and render them as primitives
+  // alongside the asset.
+  const shells = useMemo(
+    () => collectWireframeShells(scene, wireUniforms, 42),
+    [scene, wireUniforms],
+  );
 
   // Normalize position + scale to a unit-ish cube so any asset frames cleanly.
   const fit = useMemo(() => {
@@ -159,9 +178,12 @@ const ChoreographyStage = ({
 
   useFrame((_, dt) => {
     const u = uniformsRef.current;
-    uniforms.uSurfaceReveal.value = u.surfaceReveal;
-    uniforms.uPbrMix.value        = u.pbrMix;
-    uniforms.uBuildShimmer.value  = u.buildShimmer;
+    uniforms.uSurfaceReveal.value   = u.surfaceReveal;
+    uniforms.uPbrMix.value          = u.pbrMix;
+    uniforms.uBuildShimmer.value    = u.buildShimmer;
+    wireUniforms.uWireframeReveal.value  = u.wireframeReveal;
+    wireUniforms.uWireframeFadeOut.value = u.wireframeFadeOut;
+    wireUniforms.uBuildShimmer.value     = u.buildShimmer;
 
     if (groupRef.current && autoRotate > 0) {
       groupRef.current.rotation.y += autoRotate * dt;
@@ -179,6 +201,9 @@ const ChoreographyStage = ({
       scale={fit.scale}
     >
       <primitive object={scene} />
+      {shells.map((shell, i) => (
+        <primitive key={i} object={shell} />
+      ))}
     </group>
   );
 };
