@@ -187,9 +187,8 @@ const ChoreographyStage = ({
 
   const risingTriangles = useMemo(
     () => buildRisingTriangles(scene, triUniforms, {
-      count: 3000,
+      count: 4000,
       triangleSize: 0.05,
-      seed: 42,
       diag: isDiagMode,
     }),
     [scene, triUniforms, isDiagMode],
@@ -223,9 +222,9 @@ const ChoreographyStage = ({
     wireUniforms.uWireframeReveal.value  = u.wireframeReveal;
     wireUniforms.uWireframeFadeOut.value = u.wireframeFadeOut;
     wireUniforms.uBuildShimmer.value     = u.buildShimmer;
-    triUniforms.uTrianglesReveal.value   = u.trianglesReveal;
-    triUniforms.uTrianglesFadeOut.value  = u.trianglesFadeOut;
-    triUniforms.uBuildShimmer.value      = u.buildShimmer;
+    triUniforms.uAttack.value            = u.trianglesReveal;
+    triUniforms.uFadeOut.value           = u.trianglesFadeOut;
+    triUniforms.uTime.value              = performance.now() / 1000;
 
     // Debug: emit one log line each time trianglesReveal crosses a 25 %
     // threshold so we can confirm in the console that the particle stage
