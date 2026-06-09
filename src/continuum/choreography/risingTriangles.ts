@@ -232,10 +232,10 @@ export const createRisingTrianglesUniforms = (
   uTrianglesReveal:  { value: 0 },
   uTrianglesFadeOut: { value: 0 },
   uRiseDistance:     { value: riseDistance },
-  // 0.11 means each triangle takes 11 % of the rise stage to travel
+  // 0.18 means each triangle takes 18 % of the rise stage to travel
   // from displaced-inward to settled — slow enough that the eye can
-  // actually track the motion of an individual triangle.
-  uRiseWindow:       { value: 0.11 },
+  // unambiguously track the motion of any single triangle.
+  uRiseWindow:       { value: 0.18 },
   uMatteColor:       { value: new THREE.Color(matteHex) },
   uEdgeColor:        { value: new THREE.Color(edgeHex) },
   uBuildShimmer:     { value: 0 },
@@ -302,7 +302,15 @@ export const createRisingTrianglesMaterial = (
     fragmentShader: FRAG,
     transparent: true,
     depthWrite: false,
+    // depthTest off so particles always paint on top of whatever's behind
+    // them — eliminates any chance the source mesh or wireframe is
+    // occluding them via depth-buffer remnants.
+    depthTest: false,
     side: THREE.DoubleSide,
+    // Additive-ish blending so the rising amber triangles glow brightly
+    // against the dark background — pure "on top" rendering, no premultiplied
+    // alpha surprises.
+    blending: THREE.AdditiveBlending,
   });
 };
 
@@ -327,10 +335,11 @@ export const buildRisingTriangles = (
   uniforms: RisingTrianglesUniforms,
   opts: BuildRisingTrianglesOpts = {},
 ): THREE.Mesh | null => {
-  const count = opts.count ?? 1800;
-  // Default ~2× the previous size — at this scale individual triangles
-  // are unmistakably visible during the rise even on a large asset.
-  const triangleSize = opts.triangleSize ?? 0.09;
+  const count = opts.count ?? 1400;
+  // 0.12 is conspicuously large — about 4 % of a normalized 3.4-unit
+  // asset, ~24 pixels per triangle at typical viewport sizes. The
+  // rise should be unmissable at this size.
+  const triangleSize = opts.triangleSize ?? 0.12;
   const seed = opts.seed ?? 42;
 
   const samples = sampleSurface(root, count);

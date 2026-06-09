@@ -58,7 +58,7 @@ export interface TimelineUniforms {
 }
 
 /** Total wall-clock duration of one reveal, in milliseconds. */
-export const TIMELINE_TOTAL_MS = 6400;
+export const TIMELINE_TOTAL_MS = 7200;
 
 /** Subtle tail after the last keyframe so the final state settles without snapping. */
 export const TIMELINE_TAIL_MS = 200;
@@ -99,21 +99,24 @@ export const sampleTimeline = (elapsedMs: number): TimelineUniforms => {
   const PROXY_HOLD_END = 400;
   const PROXY_OUT_END  = 900;
 
+  // Wireframe finishes before particles peak so there's a clean
+  // "pure particles" window where the rising triangles are the
+  // only thing on screen — that's where the signature moment lives.
   const WIRE_BUILD_START = 400;
-  const WIRE_BUILD_PEAK  = 2400;
-  const WIRE_FADE_START  = 3200;
-  const WIRE_FADE_END    = 4000;
+  const WIRE_BUILD_PEAK  = 2200;
+  const WIRE_FADE_START  = 2600;
+  const WIRE_FADE_END    = 3200;
 
-  const TRI_RISE_START = 2400;
-  const TRI_RISE_END   = 4400;     // all triangles settled
-  const TRI_FADE_START = 4400;
-  const TRI_FADE_END   = 5400;     // particles fully gone
+  const TRI_RISE_START = 2200;
+  const TRI_RISE_END   = 5000;     // longer rise stage — 2.8 s
+  const TRI_FADE_START = 5200;
+  const TRI_FADE_END   = 6200;     // particles fully gone
 
-  const SURFACE_START = 4200;      // actual mesh begins to appear
-  const SURFACE_END   = 5400;      // actual mesh fully visible
+  const SURFACE_START = 5200;      // actual mesh begins to appear under particles
+  const SURFACE_END   = 6200;      // actual mesh fully visible
 
-  const PBR_START = 5400;
-  const PBR_END   = 6400;
+  const PBR_START = 6200;
+  const PBR_END   = 7200;
 
   // ── proxyOpacity: 0 → 1 (fast) → hold → 0 (gentle handoff). ──
   let proxyOpacity = 0;

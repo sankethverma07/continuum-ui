@@ -172,11 +172,11 @@ const ChoreographyStage = ({
   );
 
   // Build the rising-triangles particle layer. Sampled uniformly across
-  // every mesh's surface, ~3000 small triangles total. This becomes the
-  // visible surface during the rise stage; the actual mesh stays hidden
-  // (uSurfaceReveal=0) until particles complete.
+  // every mesh's surface. Defaults inside buildRisingTriangles produce
+  // ~1400 conspicuously-large triangles for unmissable visibility during
+  // the pure-particle window of the timeline.
   const risingTriangles = useMemo(
-    () => buildRisingTriangles(scene, triUniforms, { count: 3000, triangleSize: 0.045, seed: 42 }),
+    () => buildRisingTriangles(scene, triUniforms, { seed: 42 }),
     [scene, triUniforms],
   );
 
@@ -194,7 +194,11 @@ const ChoreographyStage = ({
   // Push the sampled uniforms into the shader uniform group every frame.
   const groupRef = useRef<THREE.Group>(null);
   const reportedRef = useRef(false);
-  useEffect(() => { reportedRef.current = false; }, [runToken]);
+  const loggedSamplesRef = useRef(0);
+  useEffect(() => {
+    reportedRef.current = false;
+    loggedSamplesRef.current = 0;
+  }, [runToken]);
 
   useFrame((_, dt) => {
     const u = uniformsRef.current;
@@ -207,6 +211,16 @@ const ChoreographyStage = ({
     triUniforms.uTrianglesReveal.value   = u.trianglesReveal;
     triUniforms.uTrianglesFadeOut.value  = u.trianglesFadeOut;
     triUniforms.uBuildShimmer.value      = u.buildShimmer;
+
+    // Debug: emit one log line each time trianglesReveal crosses a 25 %
+    // threshold so we can confirm in the console that the particle stage
+    // is actually ticking up. Drop after the rise is verified.
+    const crossedAt = Math.floor(u.trianglesReveal * 4);
+    if (crossedAt > loggedSamplesRef.current) {
+      loggedSamplesRef.current = crossedAt;
+      // eslint-disable-next-line no-console
+      console.info(`[continuum-choreo] trianglesReveal=${u.trianglesReveal.toFixed(2)}  surfaceReveal=${u.surfaceReveal.toFixed(2)}  wire=${u.wireframeFadeOut.toFixed(2)}`);
+    }
 
     if (groupRef.current && autoRotate > 0) {
       groupRef.current.rotation.y += autoRotate * dt;
