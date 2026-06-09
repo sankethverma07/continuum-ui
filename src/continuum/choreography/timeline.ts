@@ -47,6 +47,12 @@ export interface TimelineUniforms {
    * 0 = visible, 1 = gone.
    */
   readonly trianglesFadeOut: number;
+  /**
+   * GLOBAL fill ramp for the triangles. Stays at 0 while triangles are
+   * rising (so they remain hollow outlines). Ramps 0 → 1 only AFTER
+   * every triangle has settled, so they all fill at once.
+   */
+  readonly trianglesFillReveal: number;
   /** 0 → 1 ramp for the actual mesh surface (discard threshold). */
   readonly surfaceReveal: number;
   /** 0 → 1 crossfade from matte form to full PBR materials. */
@@ -112,26 +118,30 @@ export const sampleTimeline = (elapsedMs: number): TimelineUniforms => {
 
   const WIRE_BUILD_START = 400;
   const WIRE_BUILD_PEAK  = 2400;
-  // Wireframe stays at full opacity for the entire reveal. Setting the
-  // fade window beyond the timeline total means wireframeFadeOut never
-  // ramps up — the amber blueprint is visible all the way through.
-  const WIRE_FADE_START  = 99999;
-  const WIRE_FADE_END    = 99999;
+  // Wireframe fades out during the PBR transition (the texture is loading,
+  // the blueprint isn't needed anymore).
+  const WIRE_FADE_START  = 9800;
+  const WIRE_FADE_END    = 10800;
 
-  // Particle stage extended to 6.4 s so the per-triangle 4-phase
-  // build (rise → hold-as-outline → fill → settled) is leisurely
-  // enough to read clearly. The long hold-as-outline window is where
-  // visible cluster groups form before they "commit" to fill.
+  // Triangle stage:
+  //   2.4 –  7.4s · RISE          — each triangle emerges from the asset
+  //                                 centre, outline only, hollow inside.
+  //   7.4 –  8.0s · LOCKED HOLD   — every triangle settled as an outline,
+  //                                 no fill yet. Pure wireframe assembly.
+  //   8.0 –  8.8s · GLOBAL FILL   — single uniform ramps 0→1, every triangle
+  //                                 fills with matte colour together.
+  //   9.4 – 10.4s · FADE          — particles dissolve as actual mesh emerges.
   const TRI_RISE_START = 2400;
-  const TRI_RISE_END   = 8800;
-  const TRI_FADE_START = 9000;
-  const TRI_FADE_END   = 10200;
+  const TRI_RISE_END   = 7400;
+  const TRI_FILL_START = 8000;
+  const TRI_FILL_END   = 8800;
+  const TRI_FADE_START = 9400;
+  const TRI_FADE_END   = 10400;
 
-  const SURFACE_START = 8400;      // actual mesh begins to appear under particles
-  const SURFACE_END   = 10200;     // actual mesh fully visible
+  const SURFACE_START = 9200;      // actual mesh begins to appear under particles
+  const SURFACE_END   = 10400;     // actual mesh fully visible
 
-  // 3-layer PBR: color first, then shadow, then reflection. The
-  // windows overlap by ~300 ms for smooth perceived continuity.
+  // 3-layer PBR — color first, then shadow, then reflection.
   const COLOR_START      = 9600;
   const COLOR_END        = 10400;
   const SHADOW_START     = 10100;
@@ -196,6 +206,10 @@ export const sampleTimeline = (elapsedMs: number): TimelineUniforms => {
     trianglesFadeOut = 1;
   }
 
+  // ── trianglesFillReveal: GLOBAL fill. 0 during rise (hollow outlines),
+  //    then ramps 0 → 1 after every triangle has settled. ──
+  const trianglesFillReveal = smoothstep(TRI_FILL_START, TRI_FILL_END, elapsedMs);
+
   // ── surfaceReveal: actual mesh discard threshold. Stays at 0 (everything
   //    discarded, mesh invisible) until the particles have done their job. ──
   let surfaceReveal = 0;
@@ -232,6 +246,7 @@ export const sampleTimeline = (elapsedMs: number): TimelineUniforms => {
     wireframeFadeOut,
     trianglesReveal,
     trianglesFadeOut,
+    trianglesFillReveal,
     surfaceReveal,
     pbrMix,
     colorMix,
@@ -249,6 +264,7 @@ export const INITIAL_UNIFORMS: TimelineUniforms = {
   wireframeFadeOut: 0,
   trianglesReveal: 0,
   trianglesFadeOut: 0,
+  trianglesFillReveal: 0,
   surfaceReveal: 0,
   pbrMix: 0,
   colorMix: 0,

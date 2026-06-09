@@ -204,8 +204,15 @@ const ChoreographyStage = ({
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
     const maxAxis = Math.max(size.x, size.y, size.z) || 1;
-    return { offset: center.clone().negate(), scale: 3.4 / maxAxis };
+    return { offset: center.clone().negate(), scale: 3.4 / maxAxis, centerWorld: center.clone() };
   }, [scene]);
+
+  // Push the asset's centre into the particle shader so triangles emerge
+  // along the direction from centre outward. This is in scene-local space,
+  // matching the geometry the particles are computed against.
+  useMemo(() => {
+    triUniforms.uAssetCenter.value.copy(fit.centerWorld);
+  }, [triUniforms, fit]);
 
   const { uniformsRef, isComplete } = useTimeline(runToken);
 
@@ -231,6 +238,7 @@ const ChoreographyStage = ({
     wireUniforms.uBuildShimmer.value     = u.buildShimmer;
     triUniforms.uAttack.value            = u.trianglesReveal;
     triUniforms.uFadeOut.value           = u.trianglesFadeOut;
+    triUniforms.uFillReveal.value        = u.trianglesFillReveal;
     triUniforms.uTime.value              = performance.now() / 1000;
 
     // Debug: emit one log line each time trianglesReveal crosses a 25 %

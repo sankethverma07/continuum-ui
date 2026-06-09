@@ -194,23 +194,28 @@ const buildUniformTriangulation = (
 // ─── Uniforms + material ─────────────────────────────────────────────
 
 export interface RisingTrianglesUniforms {
-  /** Densification ramp, 0 → 1. Particles begin rising when uAttack crosses their seed. */
+  /** Densification ramp, 0 → 1. Triangles begin rising when uAttack crosses their seed. */
   readonly uAttack:         { value: number };
   /** Wall-clock time in seconds; drives the emergence wobble. */
   readonly uTime:           { value: number };
-  /** Object-space distance each particle starts BELOW its final surface position. */
+  /** Object-space distance each triangle starts BELOW its final surface position. */
   readonly uRiseDistance:   { value: number };
   /** Per-triangle rise + outline-fade-in duration as a fraction of the attack range. */
   readonly uRiseWindow:     { value: number };
   /**
-   * Hold time after rise completes before the fill begins. This is what
-   * creates the "outlines arrive first, group up, then turn opaque" feel —
-   * triangles that emerged together also fill together because they share
-   * the same delay from their (clustered) random seeds.
+   * GLOBAL fill uniform — driven by the timeline AFTER every triangle has
+   * settled into place as an outline. Ramps 0 → 1. When 0, every triangle
+   * stays HOLLOW (only outline visible). When 1, every triangle is fully
+   * filled with the matte colour. All triangles fill together, simultaneously.
    */
-  readonly uFillDelay:      { value: number };
-  /** Duration of the outline → fill crossfade per triangle. */
-  readonly uFillWindow:     { value: number };
+  readonly uFillReveal:     { value: number };
+  /**
+   * The asset's bounding-box centre in object space. Triangles emerge
+   * along the direction from this point outward toward their final
+   * surface position — they appear to come FROM the inside of the asset,
+   * not from outside.
+   */
+  readonly uAssetCenter:    { value: THREE.Vector3 };
   /** Maximum object-space jitter applied during emergence. */
   readonly uJitterAmount:   { value: number };
   /** Edge thickness as a fraction of the triangle's barycentric span. */
@@ -227,15 +232,11 @@ export const createRisingTrianglesUniforms = (
 ): RisingTrianglesUniforms => ({
   uAttack:         { value: 0 },
   uTime:           { value: 0 },
-  uRiseDistance:   { value: 0.22 },
-  // Slow rise so the eye can clearly track each triangle's climb.
-  uRiseWindow:     { value: 0.15 },
-  // Long hold as outline — this is the "wireframe builds, clusters form,
-  // THEN they commit" beat the user wants to see.
-  uFillDelay:      { value: 0.30 },
-  // Slower fill ramp once it starts.
-  uFillWindow:     { value: 0.12 },
-  uJitterAmount:   { value: 0.020 },
+  uRiseDistance:   { value: 0.50 },
+  uRiseWindow:     { value: 0.14 },
+  uFillReveal:     { value: 0 },
+  uAssetCenter:    { value: new THREE.Vector3(0, 0, 0) },
+  uJitterAmount:   { value: 0.018 },
   uEdgeThickness:  { value: 0.12 },
   uFadeOut:        { value: 0 },
   uMatteColor:     { value: new THREE.Color(matteHex) },
@@ -245,21 +246,22 @@ export const createRisingTrianglesUniforms = (
 // NOTE: do NOT redeclare attribute vec3 normal or position — Three.js
 // auto-injects both. Redeclaring silently breaks the compile.
 //
-// FOUR phases per triangle, all driven by aSeed vs uAttack:
+// TWO phases per triangle plus one global fill:
 //
-//   Phase 1 · RISE    — displaced inward by uRiseDistance, animates to
-//                       the surface. Outline alpha ramps 0 → 1.
-//                       Wobble decays during the rise.
-//   Phase 2 · HOLD    — outline at full opacity, fill still 0.
-//                       Duration = uFillDelay.
-//   Phase 3 · FILL    — fill alpha ramps 0 → 1 (the "group commits" moment).
-//                       Outline stays.
-//   Phase 4 · SETTLED — outline + fill both at 1 until uFadeOut hand-off.
+//   Phase 1 · RISE      — driven by aSeed vs uAttack. Each triangle starts
+//                         displaced INWARD along the direction from
+//                         uAssetCenter to its final position, then animates
+//                         outward as its individual rise window plays.
+//                         Outline alpha ramps 0 → 1. Wobble decays.
+//   Phase 2 · LOCKED    — outline at full opacity, hollow inside.
+//                         All triangles in this state until the next phase.
+//   Phase 3 · FILL ALL  — GLOBAL uFillReveal ramps 0 → 1. Triggered by the
+//                         timeline only AFTER all triangles have settled.
+//                         Every triangle fills simultaneously.
 //
-// Each triangle's three vertices share one aSeed (atomic emergence) plus
-// the standard barycentric basis vertex {(1,0,0), (0,1,0), (0,0,1)} so
-// the fragment shader can compute distance-from-edge. Math.random seeds
-// cluster naturally → "groups form together and fill together."
+// The fill is NOT per-triangle — it's one uniform that affects every
+// triangle in lockstep. This produces the "hollow during build, all-at-once
+// commitment" pattern the user described.
 const VERT = /* glsl */`
   attribute float aSeed;
   attribute vec3  aBary;
@@ -267,12 +269,10 @@ const VERT = /* glsl */`
   uniform float uTime;
   uniform float uRiseDistance;
   uniform float uRiseWindow;
-  uniform float uFillDelay;
-  uniform float uFillWindow;
   uniform float uJitterAmount;
+  uniform vec3  uAssetCenter;
   varying float vAlive;
   varying float vEmergence;
-  varying float vFill;
   varying vec3  vBary;
   varying vec3  vNormalWorld;
 
@@ -280,24 +280,23 @@ const VERT = /* glsl */`
     vNormalWorld = normalize(mat3(modelMatrix) * normal);
     vBary = aBary;
 
-    // Scale seed so the LAST triangle finishes BOTH rise + delay + fill
-    // by uAttack=1, leaving the tail of the population still completing.
-    float seedSpan = max(1.0 - uRiseWindow - uFillDelay - uFillWindow, 0.001);
+    // Scale seed so the LAST triangle finishes its rise by uAttack = 1.
+    float seedSpan = max(1.0 - uRiseWindow, 0.001);
     float scaledSeed = aSeed * seedSpan;
 
-    // Emergence: 0 → 1 during rise window. Outline visibility tracks this.
+    // Emergence: 0 → 1 across the per-triangle rise window. Drives outline alpha.
     vEmergence = clamp((uAttack - scaledSeed) / max(uRiseWindow, 0.001), 0.0, 1.0);
 
     // Alive: true the moment uAttack reaches this triangle's scaled seed.
     vAlive = step(scaledSeed, uAttack);
 
-    // Fill: 0 during rise AND during the delay hold, then ramps to 1.
-    // This is where "outline arrives, group forms, then commits to fill" lives.
-    float fillStart = scaledSeed + uRiseWindow + uFillDelay;
-    vFill = clamp((uAttack - fillStart) / max(uFillWindow, 0.001), 0.0, 1.0);
-
-    // Rise: displaced inward, animates outward to settled position.
-    vec3 displaced = position - normal * uRiseDistance * (1.0 - vEmergence);
+    // Direction the triangle emerges FROM: uAssetCenter (the bbox centre of
+    // the asset). The triangle starts pushed inward along this direction
+    // by uRiseDistance, then animates outward to its final position. So
+    // each triangle visually emerges from the inside of the asset, not
+    // from a flat below-surface offset.
+    vec3 dirFromCenter = normalize(position - uAssetCenter);
+    vec3 displaced = position - dirFromCenter * uRiseDistance * (1.0 - vEmergence);
 
     // Wobble: amplitude is high at emergence, decays during the rise.
     float wob = (1.0 - exp(-vEmergence * 5.0));
@@ -316,12 +315,12 @@ const VERT = /* glsl */`
 const FRAG = /* glsl */`
   precision highp float;
   uniform float uFadeOut;
+  uniform float uFillReveal;
   uniform float uEdgeThickness;
   uniform vec3  uMatteColor;
   uniform vec3  uEdgeColor;
   varying float vAlive;
   varying float vEmergence;
-  varying float vFill;
   varying vec3  vBary;
   varying vec3  vNormalWorld;
 
@@ -335,19 +334,22 @@ const FRAG = /* glsl */`
     // 1 at the edge, 0 in the centre. uEdgeThickness sets the line weight.
     float onEdge = 1.0 - smoothstep(uEdgeThickness, uEdgeThickness * 1.6, edgeDist);
 
-    // Lambert shading for the matte fill colour.
+    // Lambert shading for the matte fill colour (used only after uFillReveal kicks in).
     float lambert = clamp(dot(normalize(vNormalWorld), normalize(vec3(0.4, 0.7, 0.5))), 0.0, 1.0);
     vec3 matteShaded = uMatteColor * (0.55 + 0.45 * lambert);
 
-    // Edge always uses the accent colour; centre uses the matte colour.
+    // Edge always uses the accent colour; centre uses the matte colour
+    // (visible only when uFillReveal > 0).
     vec3 col = mix(matteShaded, uEdgeColor, onEdge);
 
     // Alpha:
-    //   - Edge pixels follow vEmergence — outline fades in during the rise.
-    //   - Centre pixels follow vFill   — stays invisible during outline phase,
-    //     then ramps after the delay (the "group commits" moment).
+    //   - Edge pixels follow vEmergence — outline fades in during each
+    //     triangle's individual rise window.
+    //   - Centre pixels follow the GLOBAL uFillReveal — every triangle
+    //     fills simultaneously, only after the timeline has waited for
+    //     all of them to settle into place as outlines.
     float outlineAlpha = vEmergence;
-    float fillAlpha    = vFill;
+    float fillAlpha    = uFillReveal * vEmergence;  // tied to vEmergence so off-screen tris don't suddenly pop
     float baseAlpha    = mix(fillAlpha, outlineAlpha, onEdge);
 
     float alpha = baseAlpha * (1.0 - uFadeOut);
