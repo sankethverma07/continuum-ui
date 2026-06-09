@@ -1,47 +1,36 @@
 /**
- * risingTriangles — particle layer matched to the skull effect.
+ * risingTriangles — full-surface uniform retessellation.
  *
- * Studied src/continuum/components/ColorCloud.tsx (the /cloud demo) and
- * replicated its exact emergence pattern with triangles instead of
- * points. The pattern that makes it feel clean and deliberate:
+ * Instead of sampling N points and placing isolated equilateral
+ * triangles (which leaves gaps between particles), this builds a
+ * CONTINUOUS triangular structure that fully covers the source
+ * surface. Each face of the source mesh is recursively subdivided
+ * via midpoint subdivision (1 triangle → 4 sub-triangles) until
+ * every resulting sub-triangle's edges are below uTargetEdgeLength.
  *
- *   - Each particle carries one stable random `aSeed` in [0, 1].
- *   - A global `uAttack` uniform ramps 0 → 1 over the rise stage.
- *   - `step(aSeed, uAttack)` decides visibility. A particle pops in
- *     the instant the attack value crosses its seed. Math.random()
- *     seeds cluster naturally so several particles always appear in
- *     the same instant — that's where the visible cluster groups
- *     come from, no extra logic needed.
- *   - On emergence, each particle gets a brief tangent-plane jitter
- *     that decays via `(1 - exp(-settle * 4))`. The wobble dies out
- *     in roughly 250 ms, leaving the particle pinned to the surface.
+ * The output is a single non-indexed BufferGeometry where every
+ * sub-triangle is independent (no vertex sharing) so each can carry
+ * its own seed and barycentric attributes for the 4-phase animation.
+ * Adjacent sub-triangles snap together perfectly at the source
+ * mesh's faces, producing a complete envelope of the BMW with no
+ * holes between particles.
  *
- * Surface isolation: a small helper at the top of this file (the
- * "isolation engine") walks the asset hierarchy and returns the
- * Mesh nodes that form the visible surface. For glTF assets this is
- * every Mesh node with non-empty geometry; nothing internal to
- * subtract. We merge all of them into one combined surface in world
- * space, then use MeshSurfaceSampler to pick N uniformly-distributed
- * points across the whole thing. Each point becomes one triangle.
+ * Surface isolation: every visible Mesh under the root is included.
+ * For glTF assets, that's the full visible surface. No volumetric
+ * subtraction needed since glTF meshes are surface-only by construction.
  */
 
 import * as THREE from 'three';
-import { MeshSurfaceSampler } from 'three-stdlib';
 
-// ─── Surface isolation engine ────────────────────────────────────────
-
-interface SurfaceSample {
-  readonly position: THREE.Vector3;
-  readonly normal: THREE.Vector3;
-}
+// ─── Surface isolation + subdivision pipeline ────────────────────────
 
 /**
  * The surface-isolation engine.
  *
- * Returns the Mesh nodes that form the asset's visible exterior. For
- * standard glTF assets, every Mesh under the root counts — we just
- * filter out non-visible / zero-vertex meshes. Future work may add
- * visibility raycasting to strip occluded internal geometry.
+ * Returns the Mesh nodes that form the asset's visible exterior.
+ * For glTF assets, every visible Mesh under the root with non-empty
+ * geometry counts. Future iterations can add visibility raycasting
+ * to strip occluded interior geometry on complex assets.
  */
 const isolateSurfaceMeshes = (root: THREE.Object3D): THREE.Mesh[] => {
   const meshes: THREE.Mesh[] = [];
@@ -57,8 +46,62 @@ const isolateSurfaceMeshes = (root: THREE.Object3D): THREE.Mesh[] => {
   return meshes;
 };
 
-/** Merge every isolated surface mesh into one non-indexed BufferGeometry in root-local space. */
-const mergeIsolatedSurface = (root: THREE.Object3D): THREE.BufferGeometry | null => {
+/**
+ * Recursively subdivide a triangle until every edge is below
+ * `targetEdgeLength`. Each step splits 1 triangle into 4 via midpoint
+ * subdivision. Output is appended to the provided arrays as
+ * non-indexed triangle vertices (3 vertices per face, no sharing).
+ */
+const subdivideFace = (
+  v0: THREE.Vector3, v1: THREE.Vector3, v2: THREE.Vector3,
+  n0: THREE.Vector3, n1: THREE.Vector3, n2: THREE.Vector3,
+  targetEdgeLength: number,
+  positions: number[],
+  normals: number[],
+  depth: number,
+): void => {
+  // Safety guard — cap depth so degenerate inputs don't infinite-loop.
+  if (depth > 7) {
+    positions.push(v0.x, v0.y, v0.z, v1.x, v1.y, v1.z, v2.x, v2.y, v2.z);
+    normals.push(n0.x, n0.y, n0.z, n1.x, n1.y, n1.z, n2.x, n2.y, n2.z);
+    return;
+  }
+
+  const e01 = v0.distanceTo(v1);
+  const e12 = v1.distanceTo(v2);
+  const e20 = v2.distanceTo(v0);
+  const maxEdge = Math.max(e01, e12, e20);
+
+  if (maxEdge <= targetEdgeLength) {
+    positions.push(v0.x, v0.y, v0.z, v1.x, v1.y, v1.z, v2.x, v2.y, v2.z);
+    normals.push(n0.x, n0.y, n0.z, n1.x, n1.y, n1.z, n2.x, n2.y, n2.z);
+    return;
+  }
+
+  // Midpoint subdivision: 1 triangle → 4 smaller triangles.
+  const m01 = new THREE.Vector3().addVectors(v0, v1).multiplyScalar(0.5);
+  const m12 = new THREE.Vector3().addVectors(v1, v2).multiplyScalar(0.5);
+  const m20 = new THREE.Vector3().addVectors(v2, v0).multiplyScalar(0.5);
+  const mn01 = new THREE.Vector3().addVectors(n0, n1).normalize();
+  const mn12 = new THREE.Vector3().addVectors(n1, n2).normalize();
+  const mn20 = new THREE.Vector3().addVectors(n2, n0).normalize();
+
+  subdivideFace(v0, m01, m20, n0, mn01, mn20, targetEdgeLength, positions, normals, depth + 1);
+  subdivideFace(m01, v1, m12, mn01, n1, mn12, targetEdgeLength, positions, normals, depth + 1);
+  subdivideFace(m20, m12, v2, mn20, mn12, n2, targetEdgeLength, positions, normals, depth + 1);
+  subdivideFace(m01, m12, m20, mn01, mn12, mn20, targetEdgeLength, positions, normals, depth + 1);
+};
+
+/**
+ * Build a continuous, fully-covering uniform-ish triangulation of
+ * every isolated surface mesh under `root`. Output is a non-indexed
+ * BufferGeometry with one independent triangle per face (no shared
+ * vertices, so each triangle can carry its own per-triangle attributes).
+ */
+const buildUniformTriangulation = (
+  root: THREE.Object3D,
+  targetEdgeLength: number,
+): THREE.BufferGeometry | null => {
   const meshes = isolateSurfaceMeshes(root);
   if (meshes.length === 0) return null;
 
@@ -66,8 +109,16 @@ const mergeIsolatedSurface = (root: THREE.Object3D): THREE.BufferGeometry | null
 
   const positions: number[] = [];
   const normals: number[] = [];
-  const tmpV = new THREE.Vector3();
-  const tmpN = new THREE.Vector3();
+
+  const v0 = new THREE.Vector3();
+  const v1 = new THREE.Vector3();
+  const v2 = new THREE.Vector3();
+  const n0 = new THREE.Vector3();
+  const n1 = new THREE.Vector3();
+  const n2 = new THREE.Vector3();
+  const edge1 = new THREE.Vector3();
+  const edge2 = new THREE.Vector3();
+  const faceNormal = new THREE.Vector3();
 
   for (const node of meshes) {
     const geom = node.geometry as THREE.BufferGeometry;
@@ -80,135 +131,61 @@ const mergeIsolatedSurface = (root: THREE.Object3D): THREE.BufferGeometry | null
     const worldMatrix = node.matrixWorld;
     const normalMatrix = new THREE.Matrix3().getNormalMatrix(worldMatrix);
 
-    const pushTri = (a: number, b: number, c: number) => {
-      [a, b, c].forEach((idx) => {
-        tmpV.fromBufferAttribute(posAttr, idx).applyMatrix4(worldMatrix);
-        positions.push(tmpV.x, tmpV.y, tmpV.z);
-        if (normalAttr) {
-          tmpN.fromBufferAttribute(normalAttr, idx).applyMatrix3(normalMatrix).normalize();
-          normals.push(tmpN.x, tmpN.y, tmpN.z);
-        } else {
-          normals.push(0, 1, 0);
-        }
-      });
+    const processTriangle = (a: number, b: number, c: number) => {
+      v0.fromBufferAttribute(posAttr, a).applyMatrix4(worldMatrix);
+      v1.fromBufferAttribute(posAttr, b).applyMatrix4(worldMatrix);
+      v2.fromBufferAttribute(posAttr, c).applyMatrix4(worldMatrix);
+      if (normalAttr) {
+        n0.fromBufferAttribute(normalAttr, a).applyMatrix3(normalMatrix).normalize();
+        n1.fromBufferAttribute(normalAttr, b).applyMatrix3(normalMatrix).normalize();
+        n2.fromBufferAttribute(normalAttr, c).applyMatrix3(normalMatrix).normalize();
+      } else {
+        edge1.subVectors(v1, v0);
+        edge2.subVectors(v2, v0);
+        faceNormal.crossVectors(edge1, edge2).normalize();
+        n0.copy(faceNormal); n1.copy(faceNormal); n2.copy(faceNormal);
+      }
+      subdivideFace(v0, v1, v2, n0, n1, n2, targetEdgeLength, positions, normals, 0);
     };
 
     if (indexAttr) {
       for (let i = 0; i < indexAttr.count; i += 3) {
-        pushTri(indexAttr.getX(i), indexAttr.getX(i + 1), indexAttr.getX(i + 2));
+        processTriangle(indexAttr.getX(i), indexAttr.getX(i + 1), indexAttr.getX(i + 2));
       }
     } else {
       for (let i = 0; i < posAttr.count; i += 3) {
-        pushTri(i, i + 1, i + 2);
+        processTriangle(i, i + 1, i + 2);
       }
     }
   }
 
   if (positions.length === 0) return null;
 
-  const merged = new THREE.BufferGeometry();
-  merged.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  merged.setAttribute('normal',   new THREE.Float32BufferAttribute(normals, 3));
-  return merged;
-};
+  const triCount = Math.floor(positions.length / 9);
+  const seeds = new Float32Array(triCount * 3);
+  const barycentric = new Float32Array(triCount * 9);
 
-/** Sample `count` uniformly-distributed surface points (position + normal). */
-const sampleSurfaceUniformly = (
-  root: THREE.Object3D,
-  count: number,
-): SurfaceSample[] => {
-  const merged = mergeIsolatedSurface(root);
-  if (!merged) return [];
-  const helperMesh = new THREE.Mesh(merged, new THREE.MeshBasicMaterial());
-  const sampler = new MeshSurfaceSampler(helperMesh).build();
-  const samples: SurfaceSample[] = [];
-  const p = new THREE.Vector3();
-  const n = new THREE.Vector3();
-  for (let i = 0; i < count; i += 1) {
-    sampler.sample(p, n);
-    samples.push({ position: p.clone(), normal: n.clone().normalize() });
-  }
-  merged.dispose();
-  return samples;
-};
-
-// ─── Triangle geometry ───────────────────────────────────────────────
-
-const UP = new THREE.Vector3(0, 1, 0);
-const RIGHT = new THREE.Vector3(1, 0, 0);
-
-const tangentFor = (normal: THREE.Vector3, out: THREE.Vector3): void => {
-  const helper = Math.abs(normal.dot(UP)) < 0.95 ? UP : RIGHT;
-  out.copy(helper).cross(normal).normalize();
-};
-
-/**
- * Build a BufferGeometry of N small equilateral triangles, one per
- * surface sample. Each triangle's 3 vertices share a single `aSeed`
- * float (Math.random()), so the triangle appears/wobbles as a unit.
- */
-const buildTrianglesFromSamples = (
-  samples: readonly SurfaceSample[],
-  triangleSize: number,
-): THREE.BufferGeometry => {
-  const n = samples.length;
-  const positions    = new Float32Array(n * 3 * 3);
-  const normals      = new Float32Array(n * 3 * 3);
-  const seeds        = new Float32Array(n * 3);
-  // Barycentric coordinates per vertex — the fragment shader uses these
-  // to compute distance from the nearest edge so it can render the
-  // triangle as an outline first, then fill it in later.
-  const barycentric  = new Float32Array(n * 3 * 3);
-
-  const t1 = new THREE.Vector3();
-  const t2 = new THREE.Vector3();
-
-  // Equilateral triangle offsets (circumradius ≈ size × 0.667).
-  const offsets: ReadonlyArray<readonly [number, number]> = [
-    [ 0,        0.667],
-    [-0.577,   -0.333],
-    [ 0.577,   -0.333],
-  ];
-
-  // Standard barycentric basis — one vertex gets each component.
   const baryBasis: ReadonlyArray<readonly [number, number, number]> = [
     [1, 0, 0],
     [0, 1, 0],
     [0, 0, 1],
   ];
 
-  for (let i = 0; i < n; i += 1) {
-    const sample = samples[i];
-    if (!sample) continue;
-    const { position, normal } = sample;
-    tangentFor(normal, t1);
-    t2.copy(normal).cross(t1).normalize();
-
+  for (let i = 0; i < triCount; i += 1) {
     const seed = Math.random();
-    const base = i * 9;
-    const baseSeed = i * 3;
-
     for (let v = 0; v < 3; v += 1) {
-      const offset = offsets[v];
-      const bary   = baryBasis[v];
-      if (!offset || !bary) continue;
-      const [u, w] = offset;
-      positions[base + v * 3]     = position.x + (t1.x * u + t2.x * w) * triangleSize;
-      positions[base + v * 3 + 1] = position.y + (t1.y * u + t2.y * w) * triangleSize;
-      positions[base + v * 3 + 2] = position.z + (t1.z * u + t2.z * w) * triangleSize;
-      normals[base + v * 3]     = normal.x;
-      normals[base + v * 3 + 1] = normal.y;
-      normals[base + v * 3 + 2] = normal.z;
-      seeds[baseSeed + v] = seed;
-      barycentric[base + v * 3]     = bary[0];
-      barycentric[base + v * 3 + 1] = bary[1];
-      barycentric[base + v * 3 + 2] = bary[2];
+      seeds[i * 3 + v] = seed;
+      const b = baryBasis[v];
+      if (!b) continue;
+      barycentric[i * 9 + v * 3]     = b[0];
+      barycentric[i * 9 + v * 3 + 1] = b[1];
+      barycentric[i * 9 + v * 3 + 2] = b[2];
     }
   }
 
   const geom = new THREE.BufferGeometry();
-  geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geom.setAttribute('normal',   new THREE.BufferAttribute(normals, 3));
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geom.setAttribute('normal',   new THREE.Float32BufferAttribute(normals, 3));
   geom.setAttribute('aSeed',    new THREE.BufferAttribute(seeds, 1));
   geom.setAttribute('aBary',    new THREE.BufferAttribute(barycentric, 3));
   return geom;
@@ -392,10 +369,13 @@ export const createRisingTrianglesMaterial = (
 // ─── Public API ──────────────────────────────────────────────────────
 
 export interface BuildRisingTrianglesOpts {
-  /** Number of triangles to spawn. 3000–6000 is the sweet spot for car-sized assets. */
-  readonly count?: number;
-  /** Edge length of each triangle in object-space units. */
-  readonly triangleSize?: number;
+  /**
+   * Target edge length, in object-space units. Faces of the source
+   * mesh are recursively subdivided until every edge falls below
+   * this. Smaller values → more, smaller triangles → denser
+   * triangulation. 0.08 produces ~5–10k triangles on a car-sized glb.
+   */
+  readonly targetEdgeLength?: number;
   /** Diagnostic mode — render as a solid hot-pink MeshBasicMaterial, no animation, always on top. */
   readonly diag?: boolean;
 }
@@ -405,23 +385,19 @@ export const buildRisingTriangles = (
   uniforms: RisingTrianglesUniforms,
   opts: BuildRisingTrianglesOpts = {},
 ): THREE.Mesh | null => {
-  // 6000 triangles at size 0.04 covers a typical car-sized asset
-  // densely enough that the settled population reads as "the surface"
-  // rather than a scattered decoration. Bump these for sparser/denser
-  // looks per asset.
-  const count = opts.count ?? 6000;
-  const triangleSize = opts.triangleSize ?? 0.04;
+  const targetEdgeLength = opts.targetEdgeLength ?? 0.08;
 
-  const samples = sampleSurfaceUniformly(root, count);
-  // eslint-disable-next-line no-console
-  console.info(`[continuum-choreo] rising triangles: ${samples.length} samples (skull pattern)`);
-  if (samples.length === 0) {
+  const geom = buildUniformTriangulation(root, targetEdgeLength);
+  if (!geom) {
     // eslint-disable-next-line no-console
-    console.warn('[continuum-choreo] surface isolation produced no samples — check that the asset has visible Mesh children');
+    console.warn('[continuum-choreo] uniform triangulation produced no faces — check that the asset has visible Mesh children');
     return null;
   }
+  const posAttr = geom.getAttribute('position');
+  const triCount = Math.floor(posAttr.count / 3);
+  // eslint-disable-next-line no-console
+  console.info(`[continuum-choreo] continuous triangulation: ${triCount} triangles (target edge ${targetEdgeLength})`);
 
-  const geom = buildTrianglesFromSamples(samples, triangleSize);
   const mat = opts.diag
     ? new THREE.MeshBasicMaterial({
         color: 0xff2266,

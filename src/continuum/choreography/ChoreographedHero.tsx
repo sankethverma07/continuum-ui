@@ -187,12 +187,11 @@ const ChoreographyStage = ({
 
   const risingTriangles = useMemo(
     () => buildRisingTriangles(scene, triUniforms, {
-      // 6000 small triangles for true full surface coverage. With seeded
-      // Math.random aSeeds and a 3 s rise stage, about ~30 emerge per
-      // 100 ms — fast enough to feel continuous, slow enough to track
-      // individuals during their per-triangle rise window.
-      count: 6000,
-      triangleSize: 0.04,
+      // Target edge length 0.08 — every face of the source mesh is
+      // recursively subdivided until all edges fall below this.
+      // Produces a continuous, fully-covering triangulation that wraps
+      // the BMW with no holes. Expect ~5–10k triangles for a car-sized asset.
+      targetEdgeLength: 0.08,
       diag: isDiagMode,
     }),
     [scene, triUniforms, isDiagMode],
