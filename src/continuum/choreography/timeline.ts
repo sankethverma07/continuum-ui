@@ -58,7 +58,7 @@ export interface TimelineUniforms {
 }
 
 /** Total wall-clock duration of one reveal, in milliseconds. */
-export const TIMELINE_TOTAL_MS = 7600;
+export const TIMELINE_TOTAL_MS = 8800;
 
 /** Subtle tail after the last keyframe so the final state settles without snapping. */
 export const TIMELINE_TAIL_MS = 200;
@@ -104,19 +104,19 @@ export const sampleTimeline = (elapsedMs: number): TimelineUniforms => {
   const WIRE_FADE_START  = 3000;
   const WIRE_FADE_END    = 3600;
 
-  // Particle rise stage extended to 3.2 seconds so individual
-  // triangles have enough time to visibly rise + fade in. Settled
-  // triangles hold full opacity before the handoff to the actual mesh.
+  // Particle stage now covers four phases per triangle (rise + hold +
+  // fill + settled). uAttack ramps 0→1 over 4.4 seconds so each
+  // individual triangle's four phases are clearly readable.
   const TRI_RISE_START = 2400;
-  const TRI_RISE_END   = 5600;
-  const TRI_FADE_START = 5800;
-  const TRI_FADE_END   = 6800;
+  const TRI_RISE_END   = 6800;
+  const TRI_FADE_START = 7000;
+  const TRI_FADE_END   = 8000;
 
-  const SURFACE_START = 5600;      // actual mesh begins to appear under particles
-  const SURFACE_END   = 6800;      // actual mesh fully visible
+  const SURFACE_START = 6800;      // actual mesh begins to appear under particles
+  const SURFACE_END   = 8000;      // actual mesh fully visible
 
-  const PBR_START = 6800;
-  const PBR_END   = 7600;
+  const PBR_START = 8000;
+  const PBR_END   = 8800;
 
   // ── proxyOpacity: 0 → 1 (fast) → hold → 0 (gentle handoff). ──
   let proxyOpacity = 0;

@@ -152,9 +152,13 @@ const buildTrianglesFromSamples = (
   triangleSize: number,
 ): THREE.BufferGeometry => {
   const n = samples.length;
-  const positions = new Float32Array(n * 3 * 3);
-  const normals   = new Float32Array(n * 3 * 3);
-  const seeds     = new Float32Array(n * 3);
+  const positions    = new Float32Array(n * 3 * 3);
+  const normals      = new Float32Array(n * 3 * 3);
+  const seeds        = new Float32Array(n * 3);
+  // Barycentric coordinates per vertex — the fragment shader uses these
+  // to compute distance from the nearest edge so it can render the
+  // triangle as an outline first, then fill it in later.
+  const barycentric  = new Float32Array(n * 3 * 3);
 
   const t1 = new THREE.Vector3();
   const t2 = new THREE.Vector3();
@@ -164,6 +168,13 @@ const buildTrianglesFromSamples = (
     [ 0,        0.667],
     [-0.577,   -0.333],
     [ 0.577,   -0.333],
+  ];
+
+  // Standard barycentric basis — one vertex gets each component.
+  const baryBasis: ReadonlyArray<readonly [number, number, number]> = [
+    [1, 0, 0],
+    [0, 1, 0],
+    [0, 0, 1],
   ];
 
   for (let i = 0; i < n; i += 1) {
@@ -179,7 +190,8 @@ const buildTrianglesFromSamples = (
 
     for (let v = 0; v < 3; v += 1) {
       const offset = offsets[v];
-      if (!offset) continue;
+      const bary   = baryBasis[v];
+      if (!offset || !bary) continue;
       const [u, w] = offset;
       positions[base + v * 3]     = position.x + (t1.x * u + t2.x * w) * triangleSize;
       positions[base + v * 3 + 1] = position.y + (t1.y * u + t2.y * w) * triangleSize;
@@ -188,6 +200,9 @@ const buildTrianglesFromSamples = (
       normals[base + v * 3 + 1] = normal.y;
       normals[base + v * 3 + 2] = normal.z;
       seeds[baseSeed + v] = seed;
+      barycentric[base + v * 3]     = bary[0];
+      barycentric[base + v * 3 + 1] = bary[1];
+      barycentric[base + v * 3 + 2] = bary[2];
     }
   }
 
@@ -195,6 +210,7 @@ const buildTrianglesFromSamples = (
   geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geom.setAttribute('normal',   new THREE.BufferAttribute(normals, 3));
   geom.setAttribute('aSeed',    new THREE.BufferAttribute(seeds, 1));
+  geom.setAttribute('aBary',    new THREE.BufferAttribute(barycentric, 3));
   return geom;
 };
 
@@ -202,79 +218,104 @@ const buildTrianglesFromSamples = (
 
 export interface RisingTrianglesUniforms {
   /** Densification ramp, 0 → 1. Particles begin rising when uAttack crosses their seed. */
-  readonly uAttack:        { value: number };
+  readonly uAttack:         { value: number };
   /** Wall-clock time in seconds; drives the emergence wobble. */
-  readonly uTime:          { value: number };
+  readonly uTime:           { value: number };
   /** Object-space distance each particle starts BELOW its final surface position. */
-  readonly uRiseDistance:  { value: number };
+  readonly uRiseDistance:   { value: number };
+  /** Per-triangle rise + outline-fade-in duration as a fraction of the attack range. */
+  readonly uRiseWindow:     { value: number };
   /**
-   * Per-triangle rise duration as a fraction of the attack range.
-   * 0.10 means each triangle takes 10% of the rise stage to travel
-   * from below-surface to settled, with alpha fading 0→1 over the same window.
+   * Hold time after rise completes before the fill begins. This is what
+   * creates the "outlines arrive first, group up, then turn opaque" feel —
+   * triangles that emerged together also fill together because they share
+   * the same delay from their (clustered) random seeds.
    */
-  readonly uRiseWindow:    { value: number };
+  readonly uFillDelay:      { value: number };
+  /** Duration of the outline → fill crossfade per triangle. */
+  readonly uFillWindow:     { value: number };
   /** Maximum object-space jitter applied during emergence. */
-  readonly uJitterAmount:  { value: number };
+  readonly uJitterAmount:   { value: number };
+  /** Edge thickness as a fraction of the triangle's barycentric span. */
+  readonly uEdgeThickness:  { value: number };
   /** 0 = particle layer fully visible, 1 = invisible (used for handoff to actual mesh). */
-  readonly uFadeOut:       { value: number };
-  readonly uMatteColor:    { value: THREE.Color };
-  readonly uEdgeColor:     { value: THREE.Color };
+  readonly uFadeOut:        { value: number };
+  readonly uMatteColor:     { value: THREE.Color };
+  readonly uEdgeColor:      { value: THREE.Color };
 }
 
 export const createRisingTrianglesUniforms = (
   matteHex: string = '#bdb5a4',
   edgeHex: string = '#e8a857',
 ): RisingTrianglesUniforms => ({
-  uAttack:        { value: 0 },
-  uTime:          { value: 0 },
-  uRiseDistance:  { value: 0.18 },
-  uRiseWindow:    { value: 0.10 },
-  uJitterAmount:  { value: 0.025 },
-  uFadeOut:       { value: 0 },
-  uMatteColor:    { value: new THREE.Color(matteHex) },
-  uEdgeColor:     { value: new THREE.Color(edgeHex) },
+  uAttack:         { value: 0 },
+  uTime:           { value: 0 },
+  uRiseDistance:   { value: 0.18 },
+  uRiseWindow:     { value: 0.08 },
+  uFillDelay:      { value: 0.10 },
+  uFillWindow:     { value: 0.08 },
+  uJitterAmount:   { value: 0.025 },
+  uEdgeThickness:  { value: 0.10 },
+  uFadeOut:        { value: 0 },
+  uMatteColor:     { value: new THREE.Color(matteHex) },
+  uEdgeColor:      { value: new THREE.Color(edgeHex) },
 });
 
 // NOTE: do NOT redeclare attribute vec3 normal or position — Three.js
-// auto-injects both in ShaderMaterial. Redeclaring causes the shader to
-// silently fail to compile.
+// auto-injects both. Redeclaring silently breaks the compile.
 //
-// Three things happen per particle, all driven by aSeed vs uAttack:
-//   1. RISE       — displaced inward by uRiseDistance, animates to surface
-//                   over uRiseWindow fraction of attack range
-//   2. FADE-IN    — alpha ramps 0 → 1 over the same window (no pop)
-//   3. WOBBLE     — brief tangent-plane jitter that decays during emergence
+// FOUR phases per triangle, all driven by aSeed vs uAttack:
 //
-// Each triangle's three vertices share one aSeed so the whole triangle
-// emerges atomically. Math.random seeds cluster naturally → groups form.
+//   Phase 1 · RISE    — displaced inward by uRiseDistance, animates to
+//                       the surface. Outline alpha ramps 0 → 1.
+//                       Wobble decays during the rise.
+//   Phase 2 · HOLD    — outline at full opacity, fill still 0.
+//                       Duration = uFillDelay.
+//   Phase 3 · FILL    — fill alpha ramps 0 → 1 (the "group commits" moment).
+//                       Outline stays.
+//   Phase 4 · SETTLED — outline + fill both at 1 until uFadeOut hand-off.
+//
+// Each triangle's three vertices share one aSeed (atomic emergence) plus
+// the standard barycentric basis vertex {(1,0,0), (0,1,0), (0,0,1)} so
+// the fragment shader can compute distance-from-edge. Math.random seeds
+// cluster naturally → "groups form together and fill together."
 const VERT = /* glsl */`
   attribute float aSeed;
+  attribute vec3  aBary;
   uniform float uAttack;
   uniform float uTime;
   uniform float uRiseDistance;
   uniform float uRiseWindow;
+  uniform float uFillDelay;
+  uniform float uFillWindow;
   uniform float uJitterAmount;
   varying float vAlive;
   varying float vEmergence;
+  varying float vFill;
+  varying vec3  vBary;
   varying vec3  vNormalWorld;
 
   void main() {
     vNormalWorld = normalize(mat3(modelMatrix) * normal);
+    vBary = aBary;
 
-    // Scale seed so the LAST triangle (seed=1) still finishes rising
-    // when uAttack reaches 1.0. Otherwise the tail of the population
-    // never completes its rise window.
-    float scaledSeed = aSeed * (1.0 - uRiseWindow);
+    // Scale seed so the LAST triangle finishes BOTH rise + delay + fill
+    // by uAttack=1, leaving the tail of the population still completing.
+    float seedSpan = max(1.0 - uRiseWindow - uFillDelay - uFillWindow, 0.001);
+    float scaledSeed = aSeed * seedSpan;
 
-    // Emergence: 0 when the triangle is just starting to rise,
-    // 1 when fully settled at the surface.
+    // Emergence: 0 → 1 during rise window. Outline visibility tracks this.
     vEmergence = clamp((uAttack - scaledSeed) / max(uRiseWindow, 0.001), 0.0, 1.0);
 
     // Alive: true the moment uAttack reaches this triangle's scaled seed.
     vAlive = step(scaledSeed, uAttack);
 
-    // Rise: starts pushed inward by uRiseDistance, animates outward
-    // along the surface normal as emergence climbs from 0 to 1.
+    // Fill: 0 during rise AND during the delay hold, then ramps to 1.
+    // This is where "outline arrives, group forms, then commits to fill" lives.
+    float fillStart = scaledSeed + uRiseWindow + uFillDelay;
+    vFill = clamp((uAttack - fillStart) / max(uFillWindow, 0.001), 0.0, 1.0);
+
+    // Rise: displaced inward, animates outward to settled position.
     vec3 displaced = position - normal * uRiseDistance * (1.0 - vEmergence);
 
     // Wobble: amplitude is high at emergence, decays during the rise.
@@ -294,31 +335,43 @@ const VERT = /* glsl */`
 const FRAG = /* glsl */`
   precision highp float;
   uniform float uFadeOut;
+  uniform float uEdgeThickness;
   uniform vec3  uMatteColor;
   uniform vec3  uEdgeColor;
   varying float vAlive;
   varying float vEmergence;
+  varying float vFill;
+  varying vec3  vBary;
   varying vec3  vNormalWorld;
 
   void main() {
     if (vAlive < 0.5) discard;
     if (uFadeOut >= 0.99) discard;
 
-    // Lambert shading so the triangle reads as a 3D fragment, not a flat decal.
+    // Distance from nearest edge in barycentric space.
+    // 0 = on the edge, 0.333 = at the centroid.
+    float edgeDist = min(min(vBary.x, vBary.y), vBary.z);
+    // 1 at the edge, 0 in the centre. uEdgeThickness sets the line weight.
+    float onEdge = 1.0 - smoothstep(uEdgeThickness, uEdgeThickness * 1.6, edgeDist);
+
+    // Lambert shading for the matte fill colour.
     float lambert = clamp(dot(normalize(vNormalWorld), normalize(vec3(0.4, 0.7, 0.5))), 0.0, 1.0);
-    vec3 shaded = uMatteColor * (0.55 + 0.45 * lambert);
+    vec3 matteShaded = uMatteColor * (0.55 + 0.45 * lambert);
 
-    // Emerging triangles glow amber; the glow fades smoothly to matte
-    // as vEmergence approaches 1.
-    float glow = 1.0 - vEmergence;
-    vec3 col = mix(shaded, uEdgeColor, glow * 0.7);
-    col += uEdgeColor * pow(glow, 1.6) * 0.4;
+    // Edge always uses the accent colour; centre uses the matte colour.
+    vec3 col = mix(matteShaded, uEdgeColor, onEdge);
 
-    // FADE-IN: alpha ramps 0 → 1 across the same rise window. The
-    // triangle is invisible at the moment it becomes "alive" and
-    // smoothly fades in as it rises. Settled triangles stay fully
-    // opaque until the global uFadeOut handover.
-    float alpha = vEmergence * (1.0 - uFadeOut);
+    // Alpha:
+    //   - Edge pixels follow vEmergence — outline fades in during the rise.
+    //   - Centre pixels follow vFill   — stays invisible during outline phase,
+    //     then ramps after the delay (the "group commits" moment).
+    float outlineAlpha = vEmergence;
+    float fillAlpha    = vFill;
+    float baseAlpha    = mix(fillAlpha, outlineAlpha, onEdge);
+
+    float alpha = baseAlpha * (1.0 - uFadeOut);
+    if (alpha < 0.01) discard;
+
     gl_FragColor = vec4(col, alpha);
   }
 `;
