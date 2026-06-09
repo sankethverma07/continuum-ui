@@ -37,6 +37,11 @@ import {
   createWireframeUniforms,
   type WireframeShellMaterialUniforms,
 } from './wireframeShell';
+import {
+  buildRisingTriangles,
+  createRisingTrianglesUniforms,
+  type RisingTrianglesUniforms,
+} from './risingTriangles';
 import { useTimeline } from './useTimeline';
 import { engineExtendLoader } from '../utils/configureGLTFLoader';
 
@@ -146,6 +151,12 @@ const ChoreographyStage = ({
     [edgeHex],
   );
 
+  // Rising-triangles uniforms — particle layer that forms the surface.
+  const triUniforms = useMemo<RisingTrianglesUniforms>(
+    () => createRisingTrianglesUniforms(matteHex, edgeHex),
+    [matteHex, edgeHex],
+  );
+
   // Bake (or read pre-baked) revealTime per vertex, then patch materials.
   useMemo(() => {
     ensureRevealTime(scene, 42);
@@ -158,6 +169,15 @@ const ChoreographyStage = ({
   const shells = useMemo(
     () => collectWireframeShells(scene, wireUniforms, 42),
     [scene, wireUniforms],
+  );
+
+  // Build the rising-triangles particle layer. Sampled uniformly across
+  // every mesh's surface, ~3000 small triangles total. This becomes the
+  // visible surface during the rise stage; the actual mesh stays hidden
+  // (uSurfaceReveal=0) until particles complete.
+  const risingTriangles = useMemo(
+    () => buildRisingTriangles(scene, triUniforms, { count: 3000, triangleSize: 0.045, seed: 42 }),
+    [scene, triUniforms],
   );
 
   // Normalize position + scale to a unit-ish cube so any asset frames cleanly.
@@ -178,12 +198,15 @@ const ChoreographyStage = ({
 
   useFrame((_, dt) => {
     const u = uniformsRef.current;
-    uniforms.uSurfaceReveal.value   = u.surfaceReveal;
-    uniforms.uPbrMix.value          = u.pbrMix;
-    uniforms.uBuildShimmer.value    = u.buildShimmer;
+    uniforms.uSurfaceReveal.value        = u.surfaceReveal;
+    uniforms.uPbrMix.value               = u.pbrMix;
+    uniforms.uBuildShimmer.value         = u.buildShimmer;
     wireUniforms.uWireframeReveal.value  = u.wireframeReveal;
     wireUniforms.uWireframeFadeOut.value = u.wireframeFadeOut;
     wireUniforms.uBuildShimmer.value     = u.buildShimmer;
+    triUniforms.uTrianglesReveal.value   = u.trianglesReveal;
+    triUniforms.uTrianglesFadeOut.value  = u.trianglesFadeOut;
+    triUniforms.uBuildShimmer.value      = u.buildShimmer;
 
     if (groupRef.current && autoRotate > 0) {
       groupRef.current.rotation.y += autoRotate * dt;
@@ -204,6 +227,7 @@ const ChoreographyStage = ({
       {shells.map((shell, i) => (
         <primitive key={i} object={shell} />
       ))}
+      {risingTriangles ? <primitive object={risingTriangles} /> : null}
     </group>
   );
 };

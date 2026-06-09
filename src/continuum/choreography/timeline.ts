@@ -36,7 +36,18 @@ export interface TimelineUniforms {
    * peak of the wireframe build, 0 by the time the matte form is complete.
    */
   readonly wireframeFadeOut: number;
-  /** 0 → 1 ramp covering the three surface-reveal stages. Drives the per-fragment discard. */
+  /**
+   * Uniform-sized triangles rise from beneath the surface and settle
+   * into place. 0 = none risen, 1 = all settled. Drives the particle
+   * layer (see risingTriangles.ts).
+   */
+  readonly trianglesReveal: number;
+  /**
+   * Particle layer fades to invisible once the actual mesh takes over.
+   * 0 = visible, 1 = gone.
+   */
+  readonly trianglesFadeOut: number;
+  /** 0 → 1 ramp for the actual mesh surface (discard threshold). */
   readonly surfaceReveal: number;
   /** 0 → 1 crossfade from matte form to full PBR materials. */
   readonly pbrMix: number;
@@ -47,7 +58,7 @@ export interface TimelineUniforms {
 }
 
 /** Total wall-clock duration of one reveal, in milliseconds. */
-export const TIMELINE_TOTAL_MS = 5400;
+export const TIMELINE_TOTAL_MS = 6400;
 
 /** Subtle tail after the last keyframe so the final state settles without snapping. */
 export const TIMELINE_TAIL_MS = 200;
@@ -75,27 +86,34 @@ const smoothfall = (edge0: number, edge1: number, x: number): number =>
  */
 export const sampleTimeline = (elapsedMs: number): TimelineUniforms => {
   // ── Stage windows (ms). Edit these to retime the reveal globally. ──
-  // The five visible acts:
-  //   PROXY      —   0 –  400 · soft silhouette flash
-  //   WIREFRAME  — 400 – 2400 · the signature: triangles build the form
-  //   SURFACE    — 2200 – 4000 · solid form emerges behind the wireframe
-  //   WIRE FADE  — 3200 – 4000 · wireframe hands off to surface
-  //   PBR        — 4200 – 5200 · matte → full materials
+  // Six visible acts:
+  //   PROXY        —    0 –  400 · soft silhouette flash
+  //   WIREFRAME    —  400 – 2400 · the signature blueprint construction
+  //   TRIANGLES    — 2400 – 4400 · uniform triangles rise from below the
+  //                                surface and settle, forming clusters
+  //   WIRE FADE    — 3200 – 4000 · wireframe hands off
+  //   TRI FADE/    — 4200 – 5200 · particle triangles fade as the actual
+  //   SURFACE                       mesh emerges through them
+  //   PBR          — 5400 – 6400 · matte → full materials
   const PROXY_IN_END   = 100;
   const PROXY_HOLD_END = 400;
   const PROXY_OUT_END  = 900;
 
   const WIRE_BUILD_START = 400;
-  const WIRE_BUILD_PEAK  = 2400;   // wireframeReveal hits 1.0
+  const WIRE_BUILD_PEAK  = 2400;
+  const WIRE_FADE_START  = 3200;
+  const WIRE_FADE_END    = 4000;
 
-  const SURFACE_START = 2200;
-  const SURFACE_END   = 4000;
+  const TRI_RISE_START = 2400;
+  const TRI_RISE_END   = 4400;     // all triangles settled
+  const TRI_FADE_START = 4400;
+  const TRI_FADE_END   = 5400;     // particles fully gone
 
-  const WIRE_FADE_START = 3200;    // wireframe begins handoff
-  const WIRE_FADE_END   = 4000;    // wireframe fully gone
+  const SURFACE_START = 4200;      // actual mesh begins to appear
+  const SURFACE_END   = 5400;      // actual mesh fully visible
 
-  const PBR_START = 4200;
-  const PBR_END   = 5200;
+  const PBR_START = 5400;
+  const PBR_END   = 6400;
 
   // ── proxyOpacity: 0 → 1 (fast) → hold → 0 (gentle handoff). ──
   let proxyOpacity = 0;
@@ -129,14 +147,33 @@ export const sampleTimeline = (elapsedMs: number): TimelineUniforms => {
     wireframeFadeOut = 0;
   }
 
-  // ── surfaceReveal: stays at 0 during wireframe, ramps to 1 across SURFACE. ──
+  // ── trianglesReveal: particle rise ramp 0 → 1 across TRI stage. ──
+  let trianglesReveal = 0;
+  if (elapsedMs < TRI_RISE_START) {
+    trianglesReveal = 0;
+  } else if (elapsedMs < TRI_RISE_END) {
+    trianglesReveal = smoothstep(TRI_RISE_START, TRI_RISE_END, elapsedMs);
+  } else {
+    trianglesReveal = 1;
+  }
+
+  // ── trianglesFadeOut: particles vanish as actual mesh emerges. ──
+  let trianglesFadeOut = 0;
+  if (elapsedMs < TRI_FADE_START) {
+    trianglesFadeOut = 0;
+  } else if (elapsedMs < TRI_FADE_END) {
+    trianglesFadeOut = smoothstep(TRI_FADE_START, TRI_FADE_END, elapsedMs);
+  } else {
+    trianglesFadeOut = 1;
+  }
+
+  // ── surfaceReveal: actual mesh discard threshold. Stays at 0 (everything
+  //    discarded, mesh invisible) until the particles have done their job. ──
   let surfaceReveal = 0;
   if (elapsedMs < SURFACE_START) {
     surfaceReveal = 0;
   } else if (elapsedMs < SURFACE_END) {
-    // Three-phase climb so the surface still feels organic, just delayed.
     const t = (elapsedMs - SURFACE_START) / (SURFACE_END - SURFACE_START);
-    // Cubic ease: starts slow (forms behind wireframe), accelerates, settles.
     surfaceReveal = t * t * (3 - 2 * t);
   } else {
     surfaceReveal = 1;
@@ -145,11 +182,11 @@ export const sampleTimeline = (elapsedMs: number): TimelineUniforms => {
   // ── pbrMix: 0 during the matte form stage, ramps to 1 at the end. ──
   const pbrMix = smoothstep(PBR_START, PBR_END, elapsedMs);
 
-  // ── buildShimmer: pulses across the wireframe + surface stages. ──
-  const inBuild = elapsedMs > PROXY_HOLD_END && elapsedMs < SURFACE_END;
+  // ── buildShimmer: pulses across the wireframe + triangles stages. ──
+  const inBuild = elapsedMs > PROXY_HOLD_END && elapsedMs < TRI_RISE_END;
   const shimmerEnvelope = inBuild
     ? smoothstep(PROXY_HOLD_END, PROXY_HOLD_END + 300, elapsedMs) *
-      smoothfall(SURFACE_END - 400, SURFACE_END, elapsedMs)
+      smoothfall(TRI_RISE_END - 400, TRI_RISE_END, elapsedMs)
     : 0;
   const buildShimmer = shimmerEnvelope * (0.5 + 0.5 * Math.sin(elapsedMs * 0.012));
 
@@ -159,6 +196,8 @@ export const sampleTimeline = (elapsedMs: number): TimelineUniforms => {
     proxyOpacity,
     wireframeReveal,
     wireframeFadeOut,
+    trianglesReveal,
+    trianglesFadeOut,
     surfaceReveal,
     pbrMix,
     buildShimmer,
@@ -171,6 +210,8 @@ export const INITIAL_UNIFORMS: TimelineUniforms = {
   proxyOpacity: 0,
   wireframeReveal: 0,
   wireframeFadeOut: 0,
+  trianglesReveal: 0,
+  trianglesFadeOut: 0,
   surfaceReveal: 0,
   pbrMix: 0,
   buildShimmer: 0,
