@@ -201,15 +201,21 @@ const buildTrianglesFromSamples = (
 // ─── Uniforms + material ─────────────────────────────────────────────
 
 export interface RisingTrianglesUniforms {
-  /** Densification ramp, 0 → 1. Particles with aSeed below this value are alive. */
+  /** Densification ramp, 0 → 1. Particles begin rising when uAttack crosses their seed. */
   readonly uAttack:        { value: number };
-  /** Wall-clock time in seconds; drives the emergence wobble scramble. */
+  /** Wall-clock time in seconds; drives the emergence wobble. */
   readonly uTime:          { value: number };
-  /** Maximum object-space jitter applied to freshly-emerged particles. */
+  /** Object-space distance each particle starts BELOW its final surface position. */
+  readonly uRiseDistance:  { value: number };
+  /**
+   * Per-triangle rise duration as a fraction of the attack range.
+   * 0.10 means each triangle takes 10% of the rise stage to travel
+   * from below-surface to settled, with alpha fading 0→1 over the same window.
+   */
+  readonly uRiseWindow:    { value: number };
+  /** Maximum object-space jitter applied during emergence. */
   readonly uJitterAmount:  { value: number };
-  /** Frequency multiplier on the wobble scramble. */
-  readonly uSeedScramble:  { value: number };
-  /** 0 = particle layer fully visible, 1 = invisible. */
+  /** 0 = particle layer fully visible, 1 = invisible (used for handoff to actual mesh). */
   readonly uFadeOut:       { value: number };
   readonly uMatteColor:    { value: THREE.Color };
   readonly uEdgeColor:     { value: THREE.Color };
@@ -221,54 +227,66 @@ export const createRisingTrianglesUniforms = (
 ): RisingTrianglesUniforms => ({
   uAttack:        { value: 0 },
   uTime:          { value: 0 },
-  uJitterAmount:  { value: 0.035 },
-  uSeedScramble:  { value: 1.0 },
+  uRiseDistance:  { value: 0.18 },
+  uRiseWindow:    { value: 0.10 },
+  uJitterAmount:  { value: 0.025 },
   uFadeOut:       { value: 0 },
   uMatteColor:    { value: new THREE.Color(matteHex) },
   uEdgeColor:     { value: new THREE.Color(edgeHex) },
 });
 
-// NOTE: do NOT redeclare `attribute vec3 normal` or `position` — Three.js
+// NOTE: do NOT redeclare attribute vec3 normal or position — Three.js
 // auto-injects both in ShaderMaterial. Redeclaring causes the shader to
 // silently fail to compile.
+//
+// Three things happen per particle, all driven by aSeed vs uAttack:
+//   1. RISE       — displaced inward by uRiseDistance, animates to surface
+//                   over uRiseWindow fraction of attack range
+//   2. FADE-IN    — alpha ramps 0 → 1 over the same window (no pop)
+//   3. WOBBLE     — brief tangent-plane jitter that decays during emergence
+//
+// Each triangle's three vertices share one aSeed so the whole triangle
+// emerges atomically. Math.random seeds cluster naturally → groups form.
 const VERT = /* glsl */`
   attribute float aSeed;
   uniform float uAttack;
   uniform float uTime;
+  uniform float uRiseDistance;
+  uniform float uRiseWindow;
   uniform float uJitterAmount;
-  uniform float uSeedScramble;
   varying float vAlive;
-  varying float vSettle;
+  varying float vEmergence;
   varying vec3  vNormalWorld;
 
   void main() {
     vNormalWorld = normalize(mat3(modelMatrix) * normal);
 
-    // Skull-style binary visibility — pops in the instant uAttack
-    // crosses this particle's seed. Math.random() seeds cluster
-    // naturally around the current attack value, so several
-    // triangles emerge in the same instant, forming visible groups.
-    vAlive = step(aSeed, uAttack);
+    // Scale seed so the LAST triangle (seed=1) still finishes rising
+    // when uAttack reaches 1.0. Otherwise the tail of the population
+    // never completes its rise window.
+    float scaledSeed = aSeed * (1.0 - uRiseWindow);
 
-    // Time since this particle's emergence, scaled to feed the
-    // wobble dampener and the colour ramp.
-    float settle = max(0.0, uAttack - aSeed) * 4.0;
-    vSettle = settle;
-    // Wobble amplitude — 1 at emergence, decays toward 0 within ~1
-    // unit of settle, i.e. ~0.25 of the attack ramp.
-    float wob = (1.0 - exp(-settle));
+    // Emergence: 0 when the triangle is just starting to rise,
+    // 1 when fully settled at the surface.
+    vEmergence = clamp((uAttack - scaledSeed) / max(uRiseWindow, 0.001), 0.0, 1.0);
+
+    // Alive: true the moment uAttack reaches this triangle's scaled seed.
+    vAlive = step(scaledSeed, uAttack);
+
+    // Rise: starts pushed inward by uRiseDistance, animates outward
+    // along the surface normal as emergence climbs from 0 to 1.
+    vec3 displaced = position - normal * uRiseDistance * (1.0 - vEmergence);
+
+    // Wobble: amplitude is high at emergence, decays during the rise.
+    float wob = (1.0 - exp(-vEmergence * 5.0));
     float jitter = (1.0 - wob) * uJitterAmount;
-
-    // Apply the jitter in 3D so it reads on triangles oriented any
-    // which way on the surface. The pattern is the same as the
-    // skull's sin/cos seed-mixed offsets.
     vec3 jitterOffset = vec3(
-      sin(aSeed * 31.7 + uTime * uSeedScramble),
-      cos(aSeed * 17.3 + uTime * uSeedScramble),
-      sin(aSeed * 41.1 + uTime * uSeedScramble)
+      sin(aSeed * 31.7 + uTime),
+      cos(aSeed * 17.3 + uTime),
+      sin(aSeed * 41.1 + uTime)
     ) * jitter;
 
-    vec4 mvPos = modelViewMatrix * vec4(position + jitterOffset * vAlive, 1.0);
+    vec4 mvPos = modelViewMatrix * vec4(displaced + jitterOffset * vAlive, 1.0);
     gl_Position = projectionMatrix * mvPos;
   }
 `;
@@ -279,24 +297,28 @@ const FRAG = /* glsl */`
   uniform vec3  uMatteColor;
   uniform vec3  uEdgeColor;
   varying float vAlive;
-  varying float vSettle;
+  varying float vEmergence;
   varying vec3  vNormalWorld;
 
   void main() {
     if (vAlive < 0.5) discard;
     if (uFadeOut >= 0.99) discard;
 
-    // Simple matte shading so the triangle reads as a 3D fragment.
+    // Lambert shading so the triangle reads as a 3D fragment, not a flat decal.
     float lambert = clamp(dot(normalize(vNormalWorld), normalize(vec3(0.4, 0.7, 0.5))), 0.0, 1.0);
     vec3 shaded = uMatteColor * (0.55 + 0.45 * lambert);
 
-    // Emerging triangles glow amber; the glow fades within the
-    // first ~250 ms of being alive, matching the wobble dampener.
-    float emerge = 1.0 - clamp(vSettle / 4.0, 0.0, 1.0);
-    vec3 col = mix(shaded, uEdgeColor, 0.65 * emerge);
-    col += uEdgeColor * pow(emerge, 1.6) * 0.45;
+    // Emerging triangles glow amber; the glow fades smoothly to matte
+    // as vEmergence approaches 1.
+    float glow = 1.0 - vEmergence;
+    vec3 col = mix(shaded, uEdgeColor, glow * 0.7);
+    col += uEdgeColor * pow(glow, 1.6) * 0.4;
 
-    float alpha = (1.0 - uFadeOut) * (0.78 + emerge * 0.22);
+    // FADE-IN: alpha ramps 0 → 1 across the same rise window. The
+    // triangle is invisible at the moment it becomes "alive" and
+    // smoothly fades in as it rises. Settled triangles stay fully
+    // opaque until the global uFadeOut handover.
+    float alpha = vEmergence * (1.0 - uFadeOut);
     gl_FragColor = vec4(col, alpha);
   }
 `;
@@ -330,8 +352,12 @@ export const buildRisingTriangles = (
   uniforms: RisingTrianglesUniforms,
   opts: BuildRisingTrianglesOpts = {},
 ): THREE.Mesh | null => {
-  const count = opts.count ?? 4000;
-  const triangleSize = opts.triangleSize ?? 0.05;
+  // 6000 triangles at size 0.04 covers a typical car-sized asset
+  // densely enough that the settled population reads as "the surface"
+  // rather than a scattered decoration. Bump these for sparser/denser
+  // looks per asset.
+  const count = opts.count ?? 6000;
+  const triangleSize = opts.triangleSize ?? 0.04;
 
   const samples = sampleSurfaceUniformly(root, count);
   // eslint-disable-next-line no-console

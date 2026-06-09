@@ -187,8 +187,12 @@ const ChoreographyStage = ({
 
   const risingTriangles = useMemo(
     () => buildRisingTriangles(scene, triUniforms, {
-      count: 4000,
-      triangleSize: 0.05,
+      // 6000 small triangles for true full surface coverage. With seeded
+      // Math.random aSeeds and a 3 s rise stage, about ~30 emerge per
+      // 100 ms — fast enough to feel continuous, slow enough to track
+      // individuals during their per-triangle rise window.
+      count: 6000,
+      triangleSize: 0.04,
       diag: isDiagMode,
     }),
     [scene, triUniforms, isDiagMode],
