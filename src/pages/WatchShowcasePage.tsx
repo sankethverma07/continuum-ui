@@ -1,92 +1,102 @@
 /**
  * Chapter 06 · Fix · Tier Build
  * -----------------------------------------------------------------
- * Demonstrates the second fix in the Continuum choreography:
- * triangles densify additively on the same mesh — no swap from a
- * low-poly placeholder to a high-poly final asset.
+ * Live demonstration of the canonical choreography running through
+ * the new ChoreographedHero runtime. Same five-stage reveal that
+ * every Continuum asset plays:
  *
- * We use a real-world BMW glb as the hero. The same engine that
- * appears on Chapter 09 (the full choreography) is isolated here so
- * the viewer can watch the geometry build step in particular —
- * proxy → wireframe densification → PBR fade.
+ *   0.0 – 0.4 s  · proxy wireframe silhouette
+ *   0.4 – 1.5 s  · ~10 % surface coverage (organic scatter)
+ *   1.5 – 2.5 s  · ~50 % coverage
+ *   2.5 – 3.5 s  · 100 % matte form
+ *   3.5 – 4.2 s  · matte → full PBR crossfade
  *
- * The previous version of this page used a procedurally-generated
- * watch built from primitives, which read as unfinished. Replaced
- * with a real PBR asset so the demo lands on its actual technical
- * claim: "we can stream detail into a real-world hero asset without
- * a placeholder swap."
+ * Hit Replay to run it cold. The reveal is deterministic — the same
+ * scatter pattern emerges every time because the runtime seeds the
+ * per-vertex revealTime with a Mulberry32 PRNG.
  */
 
-import { AutoProgressiveHero } from '../continuum/components/AutoProgressiveHero';
+import { useState } from 'react';
+import { ChoreographedHero } from '../continuum/choreography/ChoreographedHero';
 
 export const WatchShowcasePage = () => {
+  const [runToken, setRunToken] = useState(0);
+  const replay = () => setRunToken((k) => k + 1);
+
   return (
     <main className="ch06">
       <header className="ch06__head">
-        <div className="ch06__eyebrow">Chapter 06 · Fix · Tier Build</div>
-        <h1 className="ch06__title">
-          Triangles densify additively. No swap ever happens.
-        </h1>
+        <div className="ch06__head-row">
+          <div>
+            <div className="ch06__eyebrow">Chapter 06 · Fix · Tier Build</div>
+            <h1 className="ch06__title">
+              Triangles emerge on the surface. Then materials crossfade in.
+            </h1>
+          </div>
+          <button type="button" className="ch06__replay" onClick={replay}>
+            Replay ↻
+          </button>
+        </div>
         <p className="ch06__lede">
-          The asset on the right starts as a position-only proxy
-          (sub-100 ms outline), then triangles get drawn in tiers via
-          <code> setDrawRange </code> on the <em>same mesh</em>. A
-          conventional progressive loader would ship a low-poly
-          placeholder and swap it for the high-poly version at the
-          end — that swap moment is the worst frame in the load. We
-          deliberately made that moment structurally impossible.
+          The canonical reveal — one timeline, one shader patch,
+          deterministic per-vertex scatter. The asset below is loaded
+          with no pre-processing; the runtime computes the
+          per-vertex <code>revealTime</code> attribute on the fly and
+          patches every material with the surface-discard shader.
+          Hit Replay to watch it cold.
         </p>
       </header>
 
       <section className="ch06__stage">
-        <AutoProgressiveHero
+        <ChoreographedHero
           src="/BMW.glb"
-          proxy={true}
-          autoRotate={0.35}
           backgroundHex="#0A0E16"
+          edgeHex="#e8a857"
+          autoRotate={0.35}
+          runToken={runToken}
         />
       </section>
 
       <footer className="ch06__notes">
         <div className="ch06__note">
-          <div className="ch06__note-tag">Decision</div>
+          <div className="ch06__note-tag">Stage 1–3 · Surface</div>
           <p>
-            Additive reveal over swap. The same <code>BufferGeometry</code> is
-            used from the first frame to the last — only the visible triangle
-            count changes. That choice is the entire reason the build feels
-            cinematic rather than glitchy.
+            A <code>revealTime</code> float per vertex (0–1, seeded
+            Mulberry32 scatter) gets compared against an animated
+            uniform. Fragments whose revealTime exceeds the uniform
+            are discarded — so the surface emerges progressively
+            instead of popping in.
           </p>
         </div>
         <div className="ch06__note">
-          <div className="ch06__note-tag">Trade-off</div>
+          <div className="ch06__note-tag">Stage 4 · Matte → PBR</div>
           <p>
-            We pay a small render cost per tier transition (the new triangles
-            recompute lighting on their first visible frame). On any modern
-            GPU this is invisible — under 1 ms at the densification points.
-            On older mobile hardware it shows up as a single dropped frame.
+            Once the surface hits 100 %, a second uniform crossfades
+            between a neutral lit matte and the full PBR result.
+            That's why you never see the "white blob" frame between
+            wireframe and final.
           </p>
         </div>
         <div className="ch06__note">
-          <div className="ch06__note-tag">What this is not</div>
+          <div className="ch06__note-tag">Edge glow</div>
           <p>
-            This is not Nanite. Nanite streams clusters from a virtualised
-            mesh; we stream <em>triangle ranges from a single mesh</em>. The
-            outcomes overlap (progressive geometry) but the systems are
-            architecturally different. Same insight, web-scale.
+            Fragments within ~4 % of the reveal threshold pick up the
+            accent colour briefly. The emerging triangles glow — a
+            cheap effect that reads as deliberate design, not a bug.
           </p>
         </div>
       </footer>
 
       <nav className="ch06__next">
-        <a className="ch06__next-card" href="#/compare">
-          <span className="ch06__next-tag">Next · Chapter 07</span>
-          <span className="ch06__next-title">Fix · Material Fade</span>
-          <span className="ch06__next-body">PBR materials crossfade in over the wireframe in lockstep.</span>
-        </a>
         <a className="ch06__next-card" href="#/scenes">
-          <span className="ch06__next-tag">Jump ahead · Chapter 08</span>
+          <span className="ch06__next-tag">Next · Chapter 08</span>
           <span className="ch06__next-title">The Choreography</span>
-          <span className="ch06__next-body">All three fixes composed on the McLaren P1.</span>
+          <span className="ch06__next-body">All four phases composed on the McLaren P1.</span>
+        </a>
+        <a className="ch06__next-card" href="#/phone">
+          <span className="ch06__next-tag">Jump to · Chapter 09</span>
+          <span className="ch06__next-title">The Product Page</span>
+          <span className="ch06__next-body">GALAXY Z Fold · the canonical real-world deployment.</span>
         </a>
       </nav>
 
@@ -101,28 +111,46 @@ export const WatchShowcasePage = () => {
           flex-direction: column;
           gap: 36px;
         }
-        .ch06__head { display: flex; flex-direction: column; gap: 16px; }
+        .ch06__head { display: flex; flex-direction: column; gap: 18px; }
+        .ch06__head-row {
+          display: flex; justify-content: space-between; align-items: flex-start;
+          gap: 24px; flex-wrap: wrap;
+        }
         .ch06__eyebrow {
           font-size: 11px; letter-spacing: 2.4px; text-transform: uppercase;
-          color: var(--c-accent, #e8a857);
+          color: var(--c-accent, #e8a857); margin-bottom: 10px;
         }
         .ch06__title {
           font-size: clamp(28px, 3.6vw, 44px); line-height: 1.1;
           font-weight: 500; letter-spacing: -0.01em;
-          margin: 0; max-width: 24ch;
+          margin: 0; max-width: 28ch;
         }
         .ch06__lede {
           font-size: 16px; line-height: 1.6;
           color: var(--c-fg-muted, rgba(244,236,216,0.72));
-          max-width: 68ch; margin: 0;
+          max-width: 70ch; margin: 0;
         }
-        .ch06__lede code {
+        .ch06__lede code, .ch06__note code {
           font-family: var(--font-mono, ui-monospace, monospace);
           font-size: 13px;
           padding: 1px 6px; border-radius: 2px;
           background: rgba(232,168,87,0.1);
           color: var(--c-accent, #e8a857);
         }
+        .ch06__replay {
+          background: transparent;
+          color: var(--c-accent, #e8a857);
+          border: 1px solid var(--c-accent, #e8a857);
+          padding: 10px 22px;
+          border-radius: 999px;
+          font-family: var(--font-mono, monospace);
+          font-size: 12px;
+          letter-spacing: 0.12em;
+          cursor: pointer;
+          transition: background 160ms ease;
+          align-self: center;
+        }
+        .ch06__replay:hover { background: rgba(232,168,87,0.12); }
         .ch06__stage {
           position: relative;
           width: 100%;
@@ -143,15 +171,9 @@ export const WatchShowcasePage = () => {
           color: var(--c-accent, #e8a857); margin-bottom: 10px;
         }
         .ch06__note p {
-          margin: 0; font-size: 12px; line-height: 1.55;
+          margin: 0; font-size: 13px; line-height: 1.55;
           color: var(--c-fg-muted, rgba(244,236,216,0.7));
         }
-        .ch06__note code {
-          font-family: var(--font-mono, monospace);
-          font-size: 11px;
-          color: var(--c-fg, #f4ecd8);
-        }
-        .ch06__note em { color: var(--c-fg, #f4ecd8); font-style: italic; }
         .ch06__next {
           display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
           padding-top: 24px;
