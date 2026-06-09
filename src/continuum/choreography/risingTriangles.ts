@@ -238,9 +238,14 @@ export const createRisingTrianglesUniforms = (
   uBuildShimmer:     { value: 0 },
 });
 
+// IMPORTANT: do NOT redeclare `attribute vec3 normal;` or
+// `attribute vec3 position;` — Three.js's ShaderMaterial auto-injects
+// both. Redeclaring causes "redefinition" shader compile errors and
+// the entire material silently fails to render. The custom attribute
+// `revealTime` is fine to declare here because Three.js doesn't know
+// about it.
 const VERT = /* glsl */`
   attribute float revealTime;
-  attribute vec3  normal;
   uniform float uTrianglesReveal;
   uniform float uRiseDistance;
   uniform float uRiseWindow;
