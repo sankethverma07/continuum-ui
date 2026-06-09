@@ -34,6 +34,20 @@ export interface ChoreographyUniformGroup {
   readonly uMatteColor:    { value: THREE.Color };
   readonly uBuildShimmer:  { value: number };
   readonly uEdgeColor:     { value: THREE.Color };
+  /**
+   * How far below the final surface each triangle starts, in object-space
+   * units. Each vertex begins at `position - normal * uRiseDistance` and
+   * animates back to `position` during its individual rise window.
+   * 0.0 disables the rise; ~0.15–0.35 is a good visual range.
+   */
+  readonly uRiseDistance:  { value: number };
+  /**
+   * Width of each vertex's rise window, as a fraction of the global
+   * surface-reveal ramp. 0.04 means each vertex takes 4% of the surface
+   * stage to rise from inside to its final position. Smaller = sharper
+   * cluster boundaries; larger = softer, more cross-fade-y.
+   */
+  readonly uRiseWindow:    { value: number };
 }
 
 export const createChoreographyUniforms = (
@@ -45,6 +59,8 @@ export const createChoreographyUniforms = (
   uMatteColor:    { value: new THREE.Color(matteHex) },
   uBuildShimmer:  { value: 0 },
   uEdgeColor:     { value: new THREE.Color(edgeHex) },
+  uRiseDistance:  { value: 0.22 },
+  uRiseWindow:    { value: 0.05 },
 });
 
 /** Patch a single material so its shader respects the choreography uniforms. */
@@ -84,15 +100,33 @@ const patchMaterial = (
     shader.uniforms.uMatteColor    = uniforms.uMatteColor;
     shader.uniforms.uBuildShimmer  = uniforms.uBuildShimmer;
     shader.uniforms.uEdgeColor     = uniforms.uEdgeColor;
+    shader.uniforms.uRiseDistance  = uniforms.uRiseDistance;
+    shader.uniforms.uRiseWindow    = uniforms.uRiseWindow;
 
-    // ── Vertex shader: pass revealTime through as a varying. ────────
+    // ── Vertex shader ─────────────────────────────────────────────
+    // The signature surface effect: each vertex starts displaced
+    // inward by uRiseDistance along its surface normal, then animates
+    // back to its final position during a short individual window
+    // inside the global surfaceReveal ramp. Visually: triangles
+    // "rise to the top of the surface" instead of popping in.
+    //
+    // Per-vertex math:
+    //   emergence = clamp((uSurfaceReveal - revealTime) / uRiseWindow, 0, 1)
+    //   displaced = position - normal * uRiseDistance * (1 - emergence)
+    //
+    // We scale revealTime by (1 - uRiseWindow) so the LAST vertex
+    // still fully emerges by uSurfaceReveal = 1.0.
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
         `
         #include <common>
         attribute float revealTime;
+        uniform float uSurfaceReveal;
+        uniform float uRiseDistance;
+        uniform float uRiseWindow;
         varying float vRevealTime;
+        varying float vEmergence;
         `,
       )
       .replace(
@@ -100,10 +134,17 @@ const patchMaterial = (
         `
         #include <begin_vertex>
         vRevealTime = revealTime;
+        float scaledReveal = revealTime * (1.0 - uRiseWindow);
+        vEmergence = clamp((uSurfaceReveal - scaledReveal) / max(uRiseWindow, 0.001), 0.0, 1.0);
+        // Push the vertex inward along its normal by an amount that
+        // shrinks to zero as the vertex finishes emerging. The
+        // attribute "normal" is in object space, which matches
+        // "transformed" at this point in the shader chain.
+        transformed = transformed - normal * uRiseDistance * (1.0 - vEmergence);
         `,
       );
 
-    // ── Fragment shader: declare uniforms + varying. ────────────────
+    // ── Fragment shader ───────────────────────────────────────────
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <common>',
       `
@@ -114,36 +155,33 @@ const patchMaterial = (
       uniform float uBuildShimmer;
       uniform vec3  uEdgeColor;
       varying float vRevealTime;
+      varying float vEmergence;
       `,
     );
 
-    // Discard fragments that haven't been "revealed" yet. Place the
-    // discard right after `#include <clipping_planes_fragment>` so it
-    // runs as early as possible — saves pixel cost on culled fragments.
+    // Fragments whose vertex hasn't begun rising are skipped entirely.
+    // This is much cheaper than running PBR for invisible triangles.
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <clipping_planes_fragment>',
       `
       #include <clipping_planes_fragment>
-      if (vRevealTime > uSurfaceReveal + 0.001) discard;
-      // Soft edge: fragments very close to the reveal threshold pick
-      // up the edge colour briefly so the emerging triangles glow.
-      float edgeFactor = smoothstep(uSurfaceReveal - 0.04, uSurfaceReveal, vRevealTime);
+      if (vEmergence <= 0.001) discard;
+      // edgeFactor peaks for triangles that are mid-rise. Once a
+      // triangle settles (vEmergence == 1) the glow fades out.
+      float edgeFactor = 1.0 - vEmergence;
       `,
     );
 
-    // Crossfade between matte form (uMatteColor) and full PBR output.
-    // We use dithering_fragment as our hook because it's the last
-    // include before the final write — by then gl_FragColor has the
-    // full PBR result.
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <dithering_fragment>',
       `
       #include <dithering_fragment>
       vec3 matteShaded = uMatteColor * (0.55 + 0.45 * max(dot(normalize(vNormal), vec3(0.4, 0.7, 0.5)), 0.0));
       vec3 mixed = mix(matteShaded, gl_FragColor.rgb, uPbrMix);
-      // Soft amber edge on the emerging surface.
-      vec3 edgeTinted = mix(mixed, uEdgeColor, edgeFactor * 0.65 * (1.0 - uPbrMix));
-      // Optional shimmer during the build (very subtle).
+      // Rising triangles glow at the amber edge colour; the glow
+      // fades as the triangle reaches the final surface and the
+      // matte/PBR result becomes its full value.
+      vec3 edgeTinted = mix(mixed, uEdgeColor, edgeFactor * 0.75 * (1.0 - uPbrMix * 0.6));
       vec3 shimmered = edgeTinted + uEdgeColor * uBuildShimmer * 0.08 * (1.0 - uPbrMix);
       gl_FragColor.rgb = shimmered;
       `,
