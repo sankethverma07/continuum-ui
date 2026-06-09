@@ -102,18 +102,20 @@ const subdivideFace = (
  * surface mesh under `root`. Output is a non-indexed BufferGeometry
  * with one independent triangle per face (no shared vertices).
  *
- * Triangle size is PER MESH, proportional to each mesh's world-space
- * bbox max dimension × `meshSizeRatio`. So:
+ * Triangle size is PER MESH, proportional to the SQUARE ROOT of each
+ * mesh's actual world-space SURFACE AREA — a much smarter "biggest
+ * surface" metric than the bbox max dim was:
  *
- *   - Large meshes (hood, roof, doors, windows) → large triangles.
- *     A hood with ~1.5-unit bbox at ratio 0.2 → ~0.3 unit triangles.
- *   - Small meshes (wheel rims, spokes, lights) → small triangles.
- *     A wheel rim with ~0.4-unit bbox at ratio 0.2 → ~0.08 unit triangles.
- *   - Each mesh ends up with a similar NUMBER of triangles across its
- *     surface, but the absolute size scales with the surface itself.
+ *   - A flat car hood (large area) → very large triangles.
+ *   - A long thin antenna (large bbox but tiny area) → small triangles.
+ *   - A spherical wheel rim (medium area, medium bbox) → medium triangles.
  *
- * Clamped to [0.025, 0.40] so extremely tiny or extremely large meshes
- * don't blow up the count or create unreadable mega-triangles.
+ * sqrt(area) is the right unit: surface area scales as size², so taking
+ * the square root converts back to a linear "characteristic size" that
+ * we can multiply by the size ratio.
+ *
+ * The pipeline is asset-agnostic — it works on any glb because it only
+ * cares about THREE.Mesh nodes, their geometry, and their world transform.
  */
 const buildUniformTriangulation = (
   root: THREE.Object3D,
@@ -136,11 +138,9 @@ const buildUniformTriangulation = (
   const edge1 = new THREE.Vector3();
   const edge2 = new THREE.Vector3();
   const faceNormal = new THREE.Vector3();
-  const bboxSize = new THREE.Vector3();
 
   // Per-mesh logging — useful when tuning the size ratio.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const meshReport: Array<{ name: string; dim: number; target: number }> = [];
+  const meshReport: Array<{ name: string; area: number; target: number }> = [];
 
   for (const node of meshes) {
     const geom = node.geometry as THREE.BufferGeometry;
@@ -153,17 +153,38 @@ const buildUniformTriangulation = (
     const worldMatrix = node.matrixWorld;
     const normalMatrix = new THREE.Matrix3().getNormalMatrix(worldMatrix);
 
-    // Per-mesh target: scale the triangle size to this mesh's world bbox.
-    geom.computeBoundingBox();
-    const localBox = geom.boundingBox ?? new THREE.Box3();
-    const worldBox = localBox.clone().applyMatrix4(worldMatrix);
-    worldBox.getSize(bboxSize);
-    const meshMaxDim = Math.max(bboxSize.x, bboxSize.y, bboxSize.z) || 0.1;
+    // ── Smart "biggest surface" detection: total world-space TRIANGLE
+    //    AREA of this mesh. A flat hood and a long antenna can have
+    //    similar bbox max dims, but the hood has 10× the surface area
+    //    — that's what we want to scale triangle size against.
+    let meshArea = 0;
+    const accumulateTriArea = (a: number, b: number, c: number) => {
+      v0.fromBufferAttribute(posAttr, a).applyMatrix4(worldMatrix);
+      v1.fromBufferAttribute(posAttr, b).applyMatrix4(worldMatrix);
+      v2.fromBufferAttribute(posAttr, c).applyMatrix4(worldMatrix);
+      edge1.subVectors(v1, v0);
+      edge2.subVectors(v2, v0);
+      faceNormal.crossVectors(edge1, edge2);
+      meshArea += 0.5 * faceNormal.length();
+    };
+    if (indexAttr) {
+      for (let i = 0; i < indexAttr.count; i += 3) {
+        accumulateTriArea(indexAttr.getX(i), indexAttr.getX(i + 1), indexAttr.getX(i + 2));
+      }
+    } else {
+      for (let i = 0; i < posAttr.count; i += 3) {
+        accumulateTriArea(i, i + 1, i + 2);
+      }
+    }
+
+    // sqrt(area) converts area-units back to a linear "characteristic
+    // size" that we can multiply by the size ratio. Then clamp.
+    const characteristicSize = Math.sqrt(meshArea || 0.0001);
     const perMeshTarget = Math.max(
       0.025,
-      Math.min(0.40, meshMaxDim * meshSizeRatio),
+      Math.min(0.65, characteristicSize * meshSizeRatio),
     );
-    meshReport.push({ name: node.name || '<anon>', dim: meshMaxDim, target: perMeshTarget });
+    meshReport.push({ name: node.name || '<anon>', area: meshArea, target: perMeshTarget });
 
     const processTriangle = (a: number, b: number, c: number) => {
       v0.fromBufferAttribute(posAttr, a).applyMatrix4(worldMatrix);

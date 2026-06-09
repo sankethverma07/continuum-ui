@@ -75,7 +75,7 @@ export interface TimelineUniforms {
 }
 
 /** Total wall-clock duration of one reveal, in milliseconds. */
-export const TIMELINE_TOTAL_MS = 11400;
+export const TIMELINE_TOTAL_MS = 9500;
 
 /** Subtle tail after the last keyframe so the final state settles without snapping. */
 export const TIMELINE_TAIL_MS = 200;
@@ -117,40 +117,36 @@ export const sampleTimeline = (elapsedMs: number): TimelineUniforms => {
   const PROXY_OUT_END  = 900;
 
   const WIRE_BUILD_START = 400;
-  const WIRE_BUILD_PEAK  = 2400;
+  const WIRE_BUILD_PEAK  = 2000;
   // Wireframe fades out during the PBR transition (the texture is loading,
   // the blueprint isn't needed anymore).
-  const WIRE_FADE_START  = 9800;
-  const WIRE_FADE_END    = 10800;
+  const WIRE_FADE_START  = 8000;
+  const WIRE_FADE_END    = 9000;
 
-  // Triangle stage:
-  //   2.4 –  7.4s · RISE          — each triangle emerges from the asset
-  //                                 centre, outline only, hollow inside.
-  //   7.4 –  8.0s · LOCKED HOLD   — every triangle settled as an outline,
-  //                                 no fill yet. Pure wireframe assembly.
-  //   8.0 –  8.8s · GLOBAL FILL   — single uniform ramps 0→1, every triangle
-  //                                 fills with matte colour together.
-  //   9.4 – 10.4s · FADE          — particles dissolve as actual mesh emerges.
-  const TRI_RISE_START = 2400;
-  const TRI_RISE_END   = 7400;
-  const TRI_FILL_START = 8000;
-  const TRI_FILL_END   = 8800;
-  const TRI_FADE_START = 9400;
-  const TRI_FADE_END   = 10400;
+  // Triangle stage — sped up from 6 s to ~4 s total:
+  //   2.0 – 5.8s · RISE          — triangles emerge from the asset centre.
+  //   5.8 – 6.3s · LOCKED HOLD   — every triangle settled as an outline.
+  //   6.3 – 6.9s · GLOBAL FILL   — every triangle fills with matte together.
+  //   7.6 – 8.5s · FADE          — particles dissolve into actual mesh.
+  const TRI_RISE_START = 2000;
+  const TRI_RISE_END   = 5800;
+  const TRI_FILL_START = 6300;
+  const TRI_FILL_END   = 6900;
+  const TRI_FADE_START = 7600;
+  const TRI_FADE_END   = 8500;
 
-  const SURFACE_START = 9200;      // actual mesh begins to appear under particles
-  const SURFACE_END   = 10400;     // actual mesh fully visible
+  const SURFACE_START = 7400;      // actual mesh begins to appear under particles
+  const SURFACE_END   = 8500;      // actual mesh fully visible
 
-  // 3-layer PBR — color first, then shadow, then reflection.
-  const COLOR_START      = 9600;
-  const COLOR_END        = 10400;
-  const SHADOW_START     = 10100;
-  const SHADOW_END       = 10800;
-  const REFLECTION_START = 10500;
-  const REFLECTION_END   = 11400;
+  // 3-layer PBR — color first, then shadow, then reflection. Tighter
+  // overlap (~200 ms) for the sped-up cadence.
+  const COLOR_START      = 7800;
+  const COLOR_END        = 8500;
+  const SHADOW_START     = 8300;
+  const SHADOW_END       = 8900;
+  const REFLECTION_START = 8700;
+  const REFLECTION_END   = 9500;
 
-  // Legacy single-uniform PBR ramp covers the full layered window for
-  // backward-compat readers. The 3 staged uniforms drive the actual visual.
   const PBR_START = COLOR_START;
   const PBR_END   = REFLECTION_END;
 

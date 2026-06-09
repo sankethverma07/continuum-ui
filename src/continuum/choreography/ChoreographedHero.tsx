@@ -187,15 +187,14 @@ const ChoreographyStage = ({
 
   const risingTriangles = useMemo(
     () => buildRisingTriangles(scene, triUniforms, {
-      // PER-MESH triangle sizing — 20 % of each Mesh's bbox max dim.
-      //   - Hood / windows / roof (large meshes) → large triangles,
-      //     ~5 across each panel. Reads as a few clean tiles.
-      //   - Wheel rims / spokes / lights (small meshes) → proportionally
-      //     smaller triangles, also ~5 across each piece. Detail preserved.
-      // The net effect is similar TRIANGLE COUNT per mesh, but the
-      // absolute size scales with the mesh — exactly the "shape-aware"
-      // tessellation the user asked for.
-      meshSizeRatio: 0.20,
+      // PER-MESH triangle sizing — 30 % of each mesh's sqrt(surfaceArea).
+      // The metric is real triangle-summed surface area, NOT bbox, so a
+      // flat hood (huge area, modest bbox) gets bigger triangles than a
+      // long thin antenna (small area, large bbox).
+      //   - Hood / window / roof → very large triangles (3–4 across).
+      //   - Wheel rim / brake disc → medium triangles.
+      //   - Spokes / lights / mirrors → small triangles.
+      meshSizeRatio: 0.30,
       diag: isDiagMode,
     }),
     [scene, triUniforms, isDiagMode],
