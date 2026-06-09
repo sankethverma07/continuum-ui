@@ -47,21 +47,15 @@ const isolateSurfaceMeshes = (root: THREE.Object3D): THREE.Mesh[] => {
 };
 
 /**
- * Recursively subdivide a triangle, CURVATURE-AWARE. The effective
- * target edge length is scaled up on flat faces and stays at the
- * base value on curved ones, so:
+ * Recursively subdivide a triangle until every edge falls below
+ * `targetEdgeLength`. Plain midpoint subdivision: 1 triangle → 4
+ * sub-triangles. Output is appended to the provided arrays as
+ * non-indexed triangle vertices (3 vertices per face, no sharing).
  *
- *   - Flat panels (hood, doors, roof) get coarse triangles — fewer
- *     subdivisions because their normals are nearly parallel.
- *   - Curved areas (fenders, wheel arches, grille slats, headlight
- *     surrounds) keep finer triangles because their normals diverge.
- *
- * Curvature metric: the minimum dot product between any two of the
- * face's three vertex normals. 1.0 = perfectly flat; ≈ 0.7 = highly
- * curved. We linearly remap [0.7 → 1.0] to [0 → 1] flatness, then
- * scale the effective edge target by (1 + flatness × 3). So a fully
- * flat face uses 4× the base target — meaning it has to be 4× as
- * large as a curved face before it gets subdivided.
+ * The target edge length passed in is determined PER MESH by the
+ * caller (see buildUniformTriangulation) based on each mesh's bbox
+ * size. That's how a large mesh like the hood gets large triangles
+ * and a small mesh like a wheel rim gets small ones.
  */
 const subdivideFace = (
   v0: THREE.Vector3, v1: THREE.Vector3, v2: THREE.Vector3,
@@ -83,18 +77,7 @@ const subdivideFace = (
   const e20 = v2.distanceTo(v0);
   const maxEdge = Math.max(e01, e12, e20);
 
-  // Curvature: minimum dot product between any pair of vertex normals.
-  // Closer to 1 = flatter face. Closer to 0.7 = highly curved.
-  const minDot = Math.min(
-    Math.min(n0.dot(n1), n1.dot(n2)),
-    n2.dot(n0),
-  );
-  // Remap [0.7, 1.0] → [0, 1]. Anything more curved than 0.7 clamps to 0.
-  const flatness = Math.max(0, Math.min(1, (minDot - 0.7) / 0.3));
-  // Flat faces get up to 4× the base target → much less subdivision.
-  const effectiveTarget = targetEdgeLength * (1 + flatness * 3);
-
-  if (maxEdge <= effectiveTarget) {
+  if (maxEdge <= targetEdgeLength) {
     positions.push(v0.x, v0.y, v0.z, v1.x, v1.y, v1.z, v2.x, v2.y, v2.z);
     normals.push(n0.x, n0.y, n0.z, n1.x, n1.y, n1.z, n2.x, n2.y, n2.z);
     return;
@@ -115,14 +98,26 @@ const subdivideFace = (
 };
 
 /**
- * Build a continuous, fully-covering uniform-ish triangulation of
- * every isolated surface mesh under `root`. Output is a non-indexed
- * BufferGeometry with one independent triangle per face (no shared
- * vertices, so each triangle can carry its own per-triangle attributes).
+ * Build a continuous, fully-covering triangulation of every isolated
+ * surface mesh under `root`. Output is a non-indexed BufferGeometry
+ * with one independent triangle per face (no shared vertices).
+ *
+ * Triangle size is PER MESH, proportional to each mesh's world-space
+ * bbox max dimension × `meshSizeRatio`. So:
+ *
+ *   - Large meshes (hood, roof, doors, windows) → large triangles.
+ *     A hood with ~1.5-unit bbox at ratio 0.2 → ~0.3 unit triangles.
+ *   - Small meshes (wheel rims, spokes, lights) → small triangles.
+ *     A wheel rim with ~0.4-unit bbox at ratio 0.2 → ~0.08 unit triangles.
+ *   - Each mesh ends up with a similar NUMBER of triangles across its
+ *     surface, but the absolute size scales with the surface itself.
+ *
+ * Clamped to [0.025, 0.40] so extremely tiny or extremely large meshes
+ * don't blow up the count or create unreadable mega-triangles.
  */
 const buildUniformTriangulation = (
   root: THREE.Object3D,
-  targetEdgeLength: number,
+  meshSizeRatio: number,
 ): THREE.BufferGeometry | null => {
   const meshes = isolateSurfaceMeshes(root);
   if (meshes.length === 0) return null;
@@ -141,6 +136,11 @@ const buildUniformTriangulation = (
   const edge1 = new THREE.Vector3();
   const edge2 = new THREE.Vector3();
   const faceNormal = new THREE.Vector3();
+  const bboxSize = new THREE.Vector3();
+
+  // Per-mesh logging — useful when tuning the size ratio.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const meshReport: Array<{ name: string; dim: number; target: number }> = [];
 
   for (const node of meshes) {
     const geom = node.geometry as THREE.BufferGeometry;
@@ -152,6 +152,18 @@ const buildUniformTriangulation = (
     node.updateWorldMatrix(true, false);
     const worldMatrix = node.matrixWorld;
     const normalMatrix = new THREE.Matrix3().getNormalMatrix(worldMatrix);
+
+    // Per-mesh target: scale the triangle size to this mesh's world bbox.
+    geom.computeBoundingBox();
+    const localBox = geom.boundingBox ?? new THREE.Box3();
+    const worldBox = localBox.clone().applyMatrix4(worldMatrix);
+    worldBox.getSize(bboxSize);
+    const meshMaxDim = Math.max(bboxSize.x, bboxSize.y, bboxSize.z) || 0.1;
+    const perMeshTarget = Math.max(
+      0.025,
+      Math.min(0.40, meshMaxDim * meshSizeRatio),
+    );
+    meshReport.push({ name: node.name || '<anon>', dim: meshMaxDim, target: perMeshTarget });
 
     const processTriangle = (a: number, b: number, c: number) => {
       v0.fromBufferAttribute(posAttr, a).applyMatrix4(worldMatrix);
@@ -167,7 +179,7 @@ const buildUniformTriangulation = (
         faceNormal.crossVectors(edge1, edge2).normalize();
         n0.copy(faceNormal); n1.copy(faceNormal); n2.copy(faceNormal);
       }
-      subdivideFace(v0, v1, v2, n0, n1, n2, targetEdgeLength, positions, normals, 0);
+      subdivideFace(v0, v1, v2, n0, n1, n2, perMeshTarget, positions, normals, 0);
     };
 
     if (indexAttr) {
@@ -180,6 +192,9 @@ const buildUniformTriangulation = (
       }
     }
   }
+
+  // eslint-disable-next-line no-console
+  console.info('[continuum-choreo] per-mesh triangle sizing:', meshReport.slice(0, 8), `(+${Math.max(0, meshReport.length - 8)} more)`);
 
   if (positions.length === 0) return null;
 
@@ -259,7 +274,10 @@ export const createRisingTrianglesUniforms = (
   uFillReveal:     { value: 0 },
   uAssetCenter:    { value: new THREE.Vector3(0, 0, 0) },
   uJitterAmount:   { value: 0.018 },
-  uEdgeThickness:  { value: 0.12 },
+  // Edge thickness in screen-space pixels (interpreted via fwidth in the
+  // fragment shader). 1.5 matches the visual weight of a default
+  // LineBasicMaterial — same look as the wireframe blueprint.
+  uEdgeThickness:  { value: 1.5 },
   uFadeOut:        { value: 0 },
   uMatteColor:     { value: new THREE.Color(matteHex) },
   uEdgeColor:      { value: new THREE.Color(edgeHex) },
@@ -350,11 +368,17 @@ const FRAG = /* glsl */`
     if (vAlive < 0.5) discard;
     if (uFadeOut >= 0.99) discard;
 
-    // Distance from nearest edge in barycentric space.
-    // 0 = on the edge, 0.333 = at the centroid.
+    // Distance from nearest edge in barycentric space (0 = on the edge,
+    // 0.333 = at the centroid).
     float edgeDist = min(min(vBary.x, vBary.y), vBary.z);
-    // 1 at the edge, 0 in the centre. uEdgeThickness sets the line weight.
-    float onEdge = 1.0 - smoothstep(uEdgeThickness, uEdgeThickness * 1.6, edgeDist);
+
+    // Screen-space line thickness via derivatives. fwidth(edgeDist) tells
+    // us how fast edgeDist changes per screen pixel, so multiplying it by
+    // uEdgeThickness gives a CONSTANT pixel width regardless of triangle
+    // size or camera distance — matches the LineBasicMaterial used by the
+    // wireframe blueprint.
+    float pxWidth = fwidth(edgeDist) * uEdgeThickness;
+    float onEdge = 1.0 - smoothstep(pxWidth * 0.5, pxWidth * 1.5, edgeDist);
 
     // Lambert shading for the matte fill colour (used only after uFillReveal kicks in).
     float lambert = clamp(dot(normalize(vNormalWorld), normalize(vec3(0.4, 0.7, 0.5))), 0.0, 1.0);
@@ -391,6 +415,9 @@ export const createRisingTrianglesMaterial = (
     transparent: true,
     depthWrite: false,
     side: THREE.DoubleSide,
+    // Required for fwidth() in the fragment shader — the screen-space
+    // derivative-based edge thickness that matches the wireframe blueprint.
+    extensions: { derivatives: true } as unknown as THREE.ShaderMaterialParameters['extensions'],
   });
 };
 
@@ -398,12 +425,16 @@ export const createRisingTrianglesMaterial = (
 
 export interface BuildRisingTrianglesOpts {
   /**
-   * Target edge length, in object-space units. Faces of the source
-   * mesh are recursively subdivided until every edge falls below
-   * this. Smaller values → more, smaller triangles → denser
-   * triangulation. 0.08 produces ~5–10k triangles on a car-sized glb.
+   * Triangle size relative to each Mesh's world-space bbox max dim.
+   * 0.20 means a mesh that is 1 unit wide gets triangles whose target
+   * edge length is ~0.20 units (so ~5 triangles across).
+   *
+   *   - Larger meshes (hood, window) get larger triangles.
+   *   - Smaller meshes (wheel rims, spokes) get smaller triangles.
+   *
+   * Clamped per mesh to [0.025, 0.40] so extremes stay sane.
    */
-  readonly targetEdgeLength?: number;
+  readonly meshSizeRatio?: number;
   /** Diagnostic mode — render as a solid hot-pink MeshBasicMaterial, no animation, always on top. */
   readonly diag?: boolean;
 }
@@ -413,9 +444,9 @@ export const buildRisingTriangles = (
   uniforms: RisingTrianglesUniforms,
   opts: BuildRisingTrianglesOpts = {},
 ): THREE.Mesh | null => {
-  const targetEdgeLength = opts.targetEdgeLength ?? 0.08;
+  const meshSizeRatio = opts.meshSizeRatio ?? 0.20;
 
-  const geom = buildUniformTriangulation(root, targetEdgeLength);
+  const geom = buildUniformTriangulation(root, meshSizeRatio);
   if (!geom) {
     // eslint-disable-next-line no-console
     console.warn('[continuum-choreo] uniform triangulation produced no faces — check that the asset has visible Mesh children');
@@ -424,7 +455,7 @@ export const buildRisingTriangles = (
   const posAttr = geom.getAttribute('position');
   const triCount = Math.floor(posAttr.count / 3);
   // eslint-disable-next-line no-console
-  console.info(`[continuum-choreo] continuous triangulation: ${triCount} triangles (target edge ${targetEdgeLength})`);
+  console.info(`[continuum-choreo] continuous triangulation: ${triCount} triangles (mesh size ratio ${meshSizeRatio})`);
 
   const mat = opts.diag
     ? new THREE.MeshBasicMaterial({

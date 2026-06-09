@@ -187,15 +187,15 @@ const ChoreographyStage = ({
 
   const risingTriangles = useMemo(
     () => buildRisingTriangles(scene, triUniforms, {
-      // Base target edge length. CURVATURE-AWARE: flat faces get up to
-      // 4× this (so they stay coarse), curved faces use the base (so they
-      // keep detail). With 0.16 as the base, flat panels effectively
-      // tessellate at ~0.64-unit edges (very coarse on a normalised car)
-      // while curved areas keep ~0.16-unit triangles (detailed).
-      // Net result: roughly half the triangle count of uniform 0.12 mode,
-      // and the BMW's hood/roof read as clean tessellated panels instead
-      // of a uniform grid.
-      targetEdgeLength: 0.16,
+      // PER-MESH triangle sizing — 20 % of each Mesh's bbox max dim.
+      //   - Hood / windows / roof (large meshes) → large triangles,
+      //     ~5 across each panel. Reads as a few clean tiles.
+      //   - Wheel rims / spokes / lights (small meshes) → proportionally
+      //     smaller triangles, also ~5 across each piece. Detail preserved.
+      // The net effect is similar TRIANGLE COUNT per mesh, but the
+      // absolute size scales with the mesh — exactly the "shape-aware"
+      // tessellation the user asked for.
+      meshSizeRatio: 0.20,
       diag: isDiagMode,
     }),
     [scene, triUniforms, isDiagMode],
